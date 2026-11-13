@@ -553,22 +553,17 @@ private fun CardsMine(state: HongguoUiState, model: HongguoViewModel, updateStat
             }
         }
         item {
-            // 磁贴三联浮出台头下沿；上移后补一段空隙，让下一节保持 12dp 节奏。
+            // 磁贴三联浮出台头下沿；上移后下一节自然顶上来，间距由 offset 补偿。
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).offset(y = (-20).dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                listOf(
-                    Triple("看过", "${state.history.size}", "my_history") { model.openPlayHistory(local = true) },
-                    Triple("收藏", "${state.favorites.size}", "my_favorites") { model.selectTab(AppTab.LOCAL_FAVORITES) },
-                    Triple("云片单", "云", "my_cloud") { model.selectTab(AppTab.FAVORITES); model.selectLibrarySource(true) },
-                ).forEach { (label, value, tag, action) ->
-                    Surface(onClick = action, color = CardSurface, shape = RoundedCornerShape(14.dp),
-                        shadowElevation = 4.dp, modifier = Modifier.weight(1f).testTag(tag)) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(value, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
-                            Text(label, color = Muted, fontSize = 11.sp)
-                        }
-                    }
+                MineTile("看过", "${state.history.size}", "my_history", Modifier.weight(1f)) {
+                    model.openPlayHistory(local = true)
+                }
+                MineTile("收藏", "${state.favorites.size}", "my_favorites", Modifier.weight(1f)) {
+                    model.selectTab(AppTab.LOCAL_FAVORITES)
+                }
+                MineTile("云片单", "云", "my_cloud", Modifier.weight(1f)) {
+                    model.selectTab(AppTab.FAVORITES); model.selectLibrarySource(true)
                 }
             }
         }
@@ -623,6 +618,18 @@ private fun CardsMine(state: HongguoUiState, model: HongguoViewModel, updateStat
 }
 
 /** Account avatar over its placeholder; the placeholder stays while loading, without an avatar, or when the image fails. */
+@Composable
+private fun MineTile(label: String, value: String, tag: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = CardSurface, shape = RoundedCornerShape(14.dp),
+        shadowElevation = 4.dp, modifier = modifier.testTag(tag)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+            Text(label, color = Muted, fontSize = 11.sp)
+        }
+    }
+}
+
 @Composable
 internal fun AccountAvatarImage(url: String?) {
     if (url.isNullOrBlank()) return
