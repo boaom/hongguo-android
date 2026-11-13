@@ -26,19 +26,19 @@ internal object HomeCache {
         }
     }
 
-    fun cached(feed: HomeFeed): List<DramaCard> = synchronized(memory) { memory[feed.key].orEmpty() }
+    fun cached(feed: HomeFeed): List<DramaCard> = synchronized(memory) { memory[feed.name.lowercase()].orEmpty() }
 
     /** 失败可容忍：落盘失败只影响下次启动没有首帧缓存。apply 自带异步写。 */
     fun store(feed: HomeFeed, items: List<DramaCard>, context: Context) {
         if (items.isEmpty()) return
         val trimmed = items.take(MAX_ITEMS)
-        synchronized(memory) { memory[feed.key] = trimmed }
+        synchronized(memory) { memory[feed.name.lowercase()] = trimmed }
         val json = Json.stringify(trimmed.map { card -> linkedMapOf<String, Any>(
             "id" to card.id, "title" to card.title, "cover" to card.cover,
             "episodeCount" to card.episodeCount, "summary" to card.summary) })
         try {
             context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-                .edit().putString(feed.key, json).apply()
+                .edit().putString(feed.name.lowercase(), json).apply()
         } catch (_: RuntimeException) { }
     }
 
