@@ -62,7 +62,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.hongguo.account.AccountViewModel
@@ -160,7 +162,7 @@ internal fun PlaybillHome(state: HongguoUiState, model: HongguoViewModel) {
                 listOf(HomeFeed.RECOMMEND to "热度", HomeFeed.LATEST to "新剧", HomeFeed.COMIC to "漫剧",
                     HomeFeed.GUESS to "推荐").forEach { (feed, label) ->
                     val selected = state.homeFeed == feed
-                    val color by animatedTabColor(selected, Ink, Muted)
+                    val color by animatedTabColor(selected,          val color by animatedTabColor(selected, Ink, Muted)
                     Text(label, color = color, fontSize = animatedTabSize(selected, 19.sp, 15.sp),
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         fontFamily = FontFamily.Serif,
@@ -571,11 +573,10 @@ private fun playbillIssueLine(): String {
 }
 
 @Composable
-private fun PlaybillStat(label: String, value: String, tag: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
-    val base = Modifier.weight(1f).heightIn(min = 84.dp)
+private fun PlaybillStat(label: String, value: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Surface(onClick = onClick ?: {}, enabled = onClick != null, color = CardSurface,
         shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-        modifier = if (onClick != null) base.testTag(tag) else base) {
+        modifier = modifier.heightIn(min = 84.dp)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(value, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
             Text(label, color = Muted, fontSize = 11.sp)
