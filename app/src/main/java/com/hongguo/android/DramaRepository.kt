@@ -211,6 +211,12 @@ fun readableFailure(error: Throwable, action: String): String {
         hint.contains("解密") || hint.contains("cenc") || hint.contains("decrypt") ||
             hint.contains("封装") || hint.contains("媒体校验") || hint.contains("密钥格式") ||
             hint.contains("媒体索引") || hint.contains("媒体样本") -> "该集媒体格式暂不支持，可重试或选择其他集。"
-        else -> "${action}失败，请检查网络后重试。"
+        hint.contains("register") -> "播放设备注册失败（上游拒绝或网络受限），可稍后重试，或换网络（如关闭 VPN）再试。"
+        // 兜底透出最内层原因，频繁失败时便于定位（消息不含敏感信息）。
+        else -> {
+            val cause = generateSequence(error) { it.cause }.lastOrNull()
+                ?.message.orEmpty().take(48).ifBlank { "未知原因" }
+            "${action}失败（$cause），请检查网络后重试。"
+        }
     }
 }

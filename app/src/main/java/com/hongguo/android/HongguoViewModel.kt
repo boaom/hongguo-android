@@ -107,6 +107,9 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     private val library = LibraryStore(application)
     private val accounts = (application as HongguoApplication).accountRepository
     private val preferences = application.getSharedPreferences(ThemePreferences.FILE, 0)
+    /** 播放准备失败后的自动重试次数；上游偶发空响应靠它兜住，减少用户手点重试。 */
+    private val AUTO_PLAY_RETRIES = 2
+
     private val mutableState = MutableStateFlow(HongguoUiState(query = preferences.getString("last_query", "").orEmpty(),
         autoPlayNext = preferences.getBoolean("auto_play_next", true), preloadNext = preferences.getBoolean("preload_next", true),
         playbackSpeed = runCatching { preferences.getFloat("playback_speed", 1f) }.getOrDefault(1f)
@@ -628,22 +631,36 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         }
         releaseVideo(current.video)
         mediaJob = viewModelScope.launch {
-            try {
-                val prepared = warmed ?: repository.prepare(episode) { stage, done, total ->
-                    if (version == mediaVersion) mutableState.update {
-                        it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
+            var attempt = 0
+            while (true) {
+                try {
+                    val prepared = warmed ?: repository.prepare(episode) { stage, done, total ->
+                        if (version == mediaVersion) mutableState.update {
+                            it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
+                        }
                     }
-                }
-                if (version != mediaVersion || !currentCoroutineContext().isActive) {
-                    releaseVideo(prepared)
+                    if (version != mediaVersion || !currentCoroutineContext().isActive) {
+                        releaseVideo(prepared)
+                        return@launch
+                    }
+                    mutableState.update { it.copy(video = prepared.copy(requestId = version.toLong()), preparing = false, playbackStatus = "正在载入播放器") }
                     return@launch
-                }
-                mutableState.update { it.copy(video = prepared.copy(requestId = version.toLong()), preparing = false, playbackStatus = "正在载入播放器") }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                if (version == mediaVersion) mutableState.update {
-                    it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    // 上游偶发空响应/注册失败可自愈（AppSource 本身就有换身份回退），这里再兜一层自动重试，
+                    // 免得上游抖动窗口里每次都要用户手点「重新播放」。换集/离开播放页（版本变化）立即停。
+                    attempt++
+                    if (version != mediaVersion || attempt > AUTO_PLAY_RETRIES) {
+                        if (version == mediaVersion) mutableState.update {
+                            it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
+                        }
+                        return@launch
+                    }
+                    if (version == mediaVersion) mutableState.update {
+                        it.copy(preparationStage = "网络抖动，自动重试（第 $attempt 次）…")
+                    }
+                    delay(1500L * attempt)
                 }
             }
         }
