@@ -264,10 +264,16 @@ internal fun ThemeStyleScreen(state: HongguoUiState, model: HongguoViewModel, on
                 color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
         }
         item {
-            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppThemeStyle.entries.forEach { style ->
-                    ThemeOption(style, selected = state.themeStyle == style, modifier = Modifier.weight(1f), previewDark = LocalHongguoPalette.current.isDark) {
-                        model.setThemeStyle(style)
+            // 五套主题两列排布：单行五卡会把主题名挤到换行。
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppThemeStyle.entries.chunked(2).forEach { rowEntries ->
+                    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        rowEntries.forEach { style ->
+                            ThemeOption(style, selected = state.themeStyle == style, modifier = Modifier.weight(1f), previewDark = LocalHongguoPalette.current.isDark) {
+                                model.setThemeStyle(style)
+                            }
+                        }
+                        repeat(2 - rowEntries.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }

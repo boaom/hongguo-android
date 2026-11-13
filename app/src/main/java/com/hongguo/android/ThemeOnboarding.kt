@@ -2,6 +2,7 @@ package com.hongguo.android
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -57,9 +58,15 @@ internal fun ThemeOnboardingDialog(current: AppThemeStyle, onConfirm: (AppThemeS
                         fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
                     Text("五套主题的页面布局各不相同，点选即可预览配色。之后也可以在${THEME_SETTINGS_PATH}中随时切换。",
                         color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
-                    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AppThemeStyle.entries.forEach { style ->
-                            ThemeOption(style, selected = pending == style, modifier = Modifier.weight(1f)) { pending = style }
+                    // 五套主题两列排布：单行五卡会把主题名挤到换行。
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppThemeStyle.entries.chunked(2).forEach { rowEntries ->
+                            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                rowEntries.forEach { style ->
+                                    ThemeOption(style, selected = pending == style, modifier = Modifier.weight(1f)) { pending = style }
+                                }
+                                repeat(2 - rowEntries.size) { Spacer(Modifier.weight(1f)) }
+                            }
                         }
                     }
                     Text(pending.summary, color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
