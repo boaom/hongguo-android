@@ -162,7 +162,7 @@ internal fun PlaybillHome(state: HongguoUiState, model: HongguoViewModel) {
                 listOf(HomeFeed.RECOMMEND to "热度", HomeFeed.LATEST to "新剧", HomeFeed.COMIC to "漫剧",
                     HomeFeed.GUESS to "推荐").forEach { (feed, label) ->
                     val selected = state.homeFeed == feed
-                    val color by animatedTabColor(selected,          val color by animatedTabColor(selected, Ink, Muted)
+                    val color by animatedTabColor(selected, Ink, Muted)
                     Text(label, color = color, fontSize = animatedTabSize(selected, 19.sp, 15.sp),
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         fontFamily = FontFamily.Serif,
