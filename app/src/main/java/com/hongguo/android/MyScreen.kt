@@ -87,8 +87,11 @@ internal fun MyScreen(state: HongguoUiState, model: HongguoViewModel,
             CardsMine(state, model, updateState, updateModel, accountName, accountStatus, accountAvatar, onAccount, openSettings)
             return
         }
-        // 红果场刊 keeps the shared 我的 page: its personality lives on 场刊/排片厅/剧目单/内页.
-        AppThemeStyle.PLAYBILL -> Unit
+        // 红果场刊 gets its own 订阅人 page.
+        AppThemeStyle.PLAYBILL -> {
+            PlaybillMine(state, model, updateState, updateModel, accountName, accountStatus, accountAvatar, onAccount, openSettings)
+            return
+        }
         AppThemeStyle.WARM -> Unit
     }
     // Each destination has one entry: the stat cards open 收藏 / 历史, the account card opens the account page, and the

@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -53,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -552,5 +554,156 @@ internal fun PlaybillDetail(state: HongguoUiState, model: HongguoViewModel, acco
                 }
             }
         }
+    }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * 肆 · 订阅人（我的）: 观演统计、观演记录、偏好折子——同一份 我的 数据，按场刊的排版重述。
+ * ------------------------------------------------------------------------------------------- */
+
+private val PlaybillIssueFormatter = DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
+
+/** 订阅人页的期号 = 本月序号 + 当天日期，只做展示，不参与持久化。 */
+private fun playbillIssueLine(): String {
+    val today = LocalDate.now()
+    val issue = today.monthValue
+    return "第 $issue 号订阅人 · ${today.format(PlaybillIssueFormatter)}"
+}
+
+@Composable
+private fun PlaybillStat(label: String, value: String, tag: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val base = Modifier.weight(1f).heightIn(min = 84.dp)
+    Surface(onClick = onClick ?: {}, enabled = onClick != null, color = CardSurface,
+        shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+        modifier = if (onClick != null) base.testTag(tag) else base) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(value, color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
+            Text(label, color = Muted, fontSize = 11.sp)
+        }
+    }
+}
+
+/** 观演记录里的一天：昨天 / 前天 / 具体日期。 */
+private fun playbillDayLine(updatedAt: Long): String {
+    if (updatedAt <= 0) return "近日"
+    val day = Instant.ofEpochMilli(updatedAt).atZone(ZoneId.systemDefault()).toLocalDate()
+    val today = LocalDate.now()
+    return when (day) {
+        today -> "今天"
+        today.minusDays(1) -> "昨天"
+        today.minusDays(2) -> "前天"
+        else -> day.format(DateTimeFormatter.ofPattern("M月d日", Locale.CHINA))
+    }
+}
+
+@Composable
+private fun PlaybillMine(state: HongguoUiState, model: HongguoViewModel, updateState: UpdateUiState,
+                         updateModel: UpdateViewModel, accountName: String?, accountStatus: String,
+                         accountAvatar: String?, onAccount: () -> Unit, openSettings: () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().testTag("my_screen").padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(0.dp).plusNavClearance(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            // 报头：订阅人名号 + 期号行，压双栏线。
+            Column(Modifier.padding(top = 16.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("订阅人", color = Ink, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Serif, modifier = Modifier.testTag("playbill_mine_title"))
+                    Text("我的 · 观 演 手 册", color = Muted, fontSize = 11.sp)
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 3.dp, bottom = 7.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(playbillIssueLine(), color = Muted, fontSize = 11.sp)
+                    Text("红果场刊", color = Muted, fontSize = 11.sp)
+                }
+                DoubleRule()
+            }
+        }
+        item {
+            // 订阅人卡：名号 + 状态 + 观演统计。
+            Surface(onClick = onAccount, color = CardSurface, shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth().testTag("my_account_card")) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(56.dp).clip(CircleShape).background(Cream)
+                        .border(1.5.dp, Orange, CircleShape), Alignment.Center) {
+                        androidx.compose.material3.Text("常", color = AccentText, fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
+                        AccountAvatarImage(accountAvatar)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(accountName ?: "常看场的果友", color = Ink, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(accountStatus, color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    }
+                    Icon(Icons.Outlined.ChevronRight, null, Modifier.size(20.dp), tint = Muted)
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PlaybillStat("收藏剧目", "${state.favorites.size}", Modifier.weight(1f).testTag("my_favorites")) {
+                    model.selectTab(AppTab.LOCAL_FAVORITES)
+                }
+                PlaybillStat("观演记录", "${state.history.size}", Modifier.weight(1f).testTag("my_history")) {
+                    model.openPlayHistory(local = true)
+                }
+                PlaybillStat("账号云片单", "查阅", Modifier.weight(1f).testTag("my_cloud")) {
+                    model.selectTab(AppTab.FAVORITES); model.selectLibrarySource(true)
+                }
+            }
+        }
+        state.history.take(3).takeIf { it.isNotEmpty() }?.let { recent ->
+            item { PlaybillSectionRule("观演记录") }
+            itemsIndexed(recent, key = { _, entry -> "mine_${entry.card.id}" }) { index, entry ->
+                PlaybillEntry(index, entry.card, "playbill_mine_history_${entry.card.id}",
+                    posterWidth = 46, posterHeight = 61) { model.openLibrary(entry) }
+                Text("看到第 ${entry.episodeIndex.coerceAtLeast(1)} 集 · ${playbillDayLine(entry.updatedAt)}",
+                    color = Muted, fontSize = 11.sp, modifier = Modifier.padding(start = 34.dp, bottom = 4.dp))
+            }
+        }
+        item { PlaybillSectionRule("场刊偏好") }
+        item {
+            Surface(color = CardSurface, shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Line)) {
+                Column {
+                    PlaybillMenuRow("主题样式", "场刊、排片厅与页面风格", "my_settings",
+                        trailing = state.themeStyle.label, onClick = openSettings)
+                    Box(Modifier.padding(start = 46.dp).height(1.dp).background(Line))
+                    PlaybillMenuRow("账号与隐私", "登录方式、云片单与账号管理", "my_account", onClick = onAccount)
+                    Box(Modifier.padding(start = 46.dp).height(1.dp).background(Line))
+                    PlaybillMenuRow("检查更新",
+                        if (updateState.checking) "正在检查新版本…" else "当前版本 ${BuildConfig.VERSION_NAME}",
+                        "update_check", busy = updateState.checking) { updateModel.checkForUpdates() }
+                }
+            }
+        }
+        item {
+            Text("本机收藏与观看记录仅保存在这台设备。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp,
+                modifier = Modifier.padding(top = 6.dp))
+            Text("红果独立版 ${BuildConfig.VERSION_NAME} · 场刊订阅人 ${playbillIssueLine().substringBefore(" · ")}",
+                color = Muted, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 24.dp))
+        }
+    }
+}
+
+/** 偏好折子的一行：编号列 + 标题/副题 + 尾注，压细线分隔。 */
+@Composable
+private fun PlaybillMenuRow(title: String, subtitle: String, tag: String, icon: ImageVector? = null,
+                            trailing: String? = null, busy: Boolean = false, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().testTag(tag).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (icon != null) Box(Modifier.size(32.dp).clip(RoundedCornerShape(6.dp)).background(Cream), Alignment.Center) {
+            Icon(icon, null, Modifier.size(18.dp), tint = AccentInk)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
+            Text(subtitle, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+        if (trailing != null) Text(trailing, color = Muted, fontSize = 12.sp, maxLines = 1)
+        if (busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Muted)
+        else Icon(Icons.Outlined.ChevronRight, null, Modifier.size(18.dp), tint = Muted)
     }
 }
