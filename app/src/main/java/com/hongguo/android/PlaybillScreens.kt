@@ -598,7 +598,7 @@ private fun playbillDayLine(updatedAt: Long): String {
 }
 
 @Composable
-private fun PlaybillMine(state: HongguoUiState, model: HongguoViewModel, updateState: UpdateUiState,
+internal fun PlaybillMine(state: HongguoUiState, model: HongguoViewModel, updateState: UpdateUiState,
                          updateModel: UpdateViewModel, accountName: String?, accountStatus: String,
                          accountAvatar: String?, onAccount: () -> Unit, openSettings: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().testTag("my_screen").padding(horizontal = 18.dp),
