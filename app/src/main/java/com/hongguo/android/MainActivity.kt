@@ -181,6 +181,7 @@ class MainActivity : ComponentActivity() {
                                 AppTab.FAVORITES, AppTab.HISTORY -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveLibrary(tabState, model, accountModel)
                                     AppThemeStyle.CARDS -> CardsLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.PLAYBILL -> PlaybillLibrary(tabState, model, accountModel)
                                     AppThemeStyle.WARM -> LibraryScreen(tabState, model, accountModel)
                                 }
                                 AppTab.MINE -> MyScreen(state, model, updateState, updateModel,
