@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>红果场刊 · 第 4 套主题完整稿</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --paper:#FBF7EF; --panel:#F5EFE3; --ink:#2B2622; --verm:#C94426; --muted:#9A8F80;
+    --line:#E4DCCB; --faint:#EFE9DC; --deep:#3A342E;
+  }
+  body {
+    background:#E8E0D2;
+    font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;
+    min-height:100vh; padding:56px 48px 72px; color:var(--ink);
+    background-image:
+      radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.5), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(43,38,34,.02) 0 1px, transparent 1px 4px);
+  }
+  .board { max-width:1660px; margin:0 auto; position:relative; }
+  /* ── 板面标题区 ── */
+  .masthead { display:flex; align-items:flex-end; justify-content:space-between; gap:32px; margin-bottom:8px; }
+  .masthead .l h1 { font-family:'Noto Serif SC','Songti SC',serif; font-size:44px; letter-spacing:10px; color:var(--ink); }
+  .masthead .l h1 b { color:var(--verm); }
+  .masthead .l .en { font-size:11px; letter-spacing:5px; color:var(--muted); margin-top:8px; text-transform:uppercase; }
+  .masthead .r { text-align:right; max-width:430px; }
+  .masthead .r p { font-size:13px; line-height:1.9; color:#6E6355; }
+  .masthead .r .chips { display:flex; gap:6px; justify-content:flex-end; margin-top:12px; }
+  .masthead .r .chip { width:30px; height:30px; border-radius:6px; border:1px solid rgba(43,38,34,.15); }
+  .rule { border-top:2px solid var(--ink); position:relative; margin:18px 0 44px; }
+  .rule::after { content:''; position:absolute; left:0; right:0; top:3px; border-top:1px solid var(--ink); }
+  /* ── 展示板构图：主屏居左放大，三屏错落居右 ── */
+  .stage { display:flex; gap:44px; align-items:flex-start; }
+  .col-main { flex:0 0 auto; padding-top:12px; }
+  .col-side { flex:1; display:flex; flex-wrap:wrap; gap:44px 40px; align-content:flex-start; }
+  .col-side .unit:nth-child(2) { margin-top:56px; }
+  .unit .plate-label { display:flex; align-items:baseline; gap:10px; margin-top:16px; }
+  .unit .plate-label .no { font-family:'Noto Serif SC',serif; color:var(--verm); font-size:15px; }
+  .unit .plate-label .nm { font-family:'Noto Serif SC',serif; font-size:16px; letter-spacing:2px; }
+  .unit .plate-label .ds { font-size:11px; color:var(--muted); }
+  .unit.main .plate-label .nm { font-size:18px; }
+  /* ── 手机框 ── */
+  .phone {
+    width:393px; height:852px; border-radius:34px; background:#1E1A16;
+    border:1px solid #3A342E; box-shadow:0 30px 70px rgba(43,38,34,.35);
+    overflow:hidden; position:relative; flex-shrink:0;
+  }
+  .unit.main .phone { transform:scale(1.1); transform-origin:top left; margin-bottom:85px; }
+  .cam { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:13px; height:13px; border-radius:50%; background:#0D0B09; border:1px solid #33302B; z-index:40; }
+  .scr { height:100%; overflow-y:auto; overflow-x:hidden; background:var(--paper); position:relative; display:flex; flex-direction:column;
+    background-image:repeating-linear-gradient(0deg, rgba(43,38,34,.022) 0 1px, transparent 1px 26px); }
+  .scr > * { flex-shrink:0; }
+  .scr::-webkit-scrollbar { display:none; }
+  /* ── 场刊通用元件 ── */
+  .pad { padding:0 24px; }
+  .serif { font-family:'Noto Serif SC','Songti SC',serif; }
+  .kicker { font-size:10px; letter-spacing:3px; color:var(--verm); }
+  .hairline { border-top:1px solid var(--line); }
+  .dblr { border-top:2px solid var(--ink); position:relative; }
+  .dblr::after { content:''; position:absolute; left:0; right:0; top:2px; border-top:1px solid var(--ink); }
+  .seal {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:34px; height:34px; border:1.5px solid var(--verm); color:var(--verm);
+    font-family:'Noto Serif SC',serif; font-size:12px; line-height:1.1; letter-spacing:1px;
+    transform:rotate(-4deg); border-radius:4px; text-align:center; flex-shrink:0;
+  }
+  .bar { height:3px; background:var(--line); border-radius:2px; position:relative; overflow:hidden; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; background:var(--verm); border-radius:2px; }
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+    border:1.5px solid var(--ink); background:transparent; color:var(--ink);
+    font-size:13px; font-weight:600; letter-spacing:2px; padding:11px 0; border-radius:6px;
+    transition:all .15s ease; user-select:none;
+  }
+  .btn:hover { background:rgba(43,38,34,.05); }
+  .btn.solid { background:var(--verm); border-color:var(--verm); color:#FBF7EF; }
+  .btn.solid:hover { background:#B23A20; }
+  .tag { font-size:9px; letter-spacing:1px; color:var(--verm); border:1px solid rgba(201,68,38,.45); border-radius:3px; padding:2px 6px; }
+  /* ── 顶栏与导航 ── */
+  .top { padding:54px 24px 12px; display:flex; justify-content:space-between; align-items:center; }
+  .top .brand { font-family:'Noto Serif SC',serif; font-size:19px; letter-spacing:4px; }
+  .top .brand b { color:var(--verm); }
+  .top .ico { width:36px; height:36px; border:1px solid var(--line); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#6E6355; font-size:15px; cursor:pointer; }
+  .nav { position:absolute; bottom:0; left:0; right:0; height:78px; background:#F5EFE3; border-top:1px solid var(--line); display:flex; padding:12px 8px 24px; z-index:30; }
+  .nav div { flex:1; text-align:center; font-size:10px; color:var(--muted); padding-top:4px; cursor:pointer; letter-spacing:1px; }
+  .nav div.on { color:var(--verm); }
+  .nav div.on i { font-style:normal; }
+  .nav i { display:block; font-style:normal; font-size:17px; margin-bottom:4px; }
+  /* ── 报头（首页） ── */
+  .mast { padding:14px 24px 14px; }
+  .mast .row { display:flex; justify-content:space-between; align-items:baseline; }
+  .mast .nm { font-family:'Noto Serif SC',serif; font-size:27px; letter-spacing:7px; }
+  .mast .nm b { color:var(--verm); }
+  .mast .iss { font-size:10px; color:var(--muted); letter-spacing:2px; }
+  /* ── 今晚首演 ── */
+  .premiere { margin:6px 24px 0; border:1px solid var(--line); border-radius:12px; background:#FFFDF8; overflow:hidden; cursor:pointer; }
+  .premiere .head { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px dashed var(--line); }
+  .premiere .body { display:flex; gap:14px; padding:16px; }
+  .premiere img { width:104px; height:139px; object-fit:cover; border-radius:6px; border:1px solid var(--line); flex-shrink:0; }
+  .premiere .t { font-family:'Noto Serif SC',serif; font-size:18px; line-height:1.55; margin:7px 0 8px; }
+  .premiere .m { font-size:11px; color:var(--muted); line-height:1.8; }
+  .premiere .go { margin-top:12px; display:flex; align-items:center; gap:10px; }
+  .premiere .go .btn { padding:8px 0; flex:1; letter-spacing:3px; }
+  .premiere .score { font-family:'Noto Serif SC',serif; color:var(--verm); font-size:14px; }
+  /* ── 连续放映（横滑） ── */
+  .sect { display:flex; justify-content:space-between; align-items:baseline; margin:20px 24px 0; }
+  .sect h3 { font-family:'Noto Serif SC',serif; font-size:15px; letter-spacing:2px; }
+  .sect span { font-size:10px; color:var(--muted); cursor:pointer; }
+  .reel { display:flex; gap:13px; overflow-x:auto; padding:13px 24px 4px; scrollbar-width:none; }
+  .reel::-webkit-scrollbar { display:none; }
+  .rcard { flex-shrink:0; width:92px; cursor:pointer; }
+  .rcard img { width:92px; height:122px; object-fit:cover; border-radius:6px; border:1px solid var(--line); display:block; }
+  .rcard .t { font-size:10px; line-height:1.5; margin-top:6px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rcard .m { font-size:9px; color:var(--muted); margin-top:3px; }
+  .rcard .bar { margin-top:5px; }
+  /* ── 剧目目录（编号条目） ── */
+  .prog { margin:12px 24px 0; }
+  .item { display:flex; gap:13px; padding:13px 0; border-bottom:1px solid var(--faint); cursor:pointer; align-items:flex-start; }
+  .item .no { font-family:'Noto Serif SC',serif; font-size:15px; color:var(--verm); width:24px; flex-shrink:0; padding-top:3px; }
+  .item img { width:54px; height:72px; object-fit:cover; border-radius:4px; border:1px solid var(--line); flex-shrink:0; }
+  .item .body { min-width:0; flex:1; }
+  .item .t { font-family:'Noto Serif SC',serif; font-size:14px; line-height:1.5; }
+  .item .m { font-size:10px; color:var(--muted); margin-top:4px; letter-spacing:.4px; }
+  .item .bar { margin-top:7px; }
+  .item .act { flex-shrink:0; font-size:10px; color:var(--verm); border:1px solid rgba(201,68,38,.4); border-radius:4px; padding:5px 9px; letter-spacing:1px; margin-top:14px; cursor:pointer; }
+  .item .act:hover { background:rgba(201,68,38,.06); }
+  .motto { text-align:center; font-size:10px; color:#B3A797; letter-spacing:3px; padding:20px 0 96px; margin-top:auto; }
+  .foot-hair { width:120px; margin:0 auto; border-top:1px solid var(--line); padding-top:12px; }
+</style>
+<style>
+  /* ── 排片厅（剧场） ── */
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:12px 24px 2px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chips b { flex-shrink:0; font-size:11px; font-weight:600; letter-spacing:1px; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:7px 15px; cursor:pointer; background:#FFFDF8; }
+  .chips b.on { background:var(--ink); border-color:var(--ink); color:var(--paper); }
+  .hall { margin:8px 24px 0; }
+  .hall .hh { display:flex; align-items:center; gap:10px; padding:16px 0 4px; }
+  .hall .hh .nm { font-family:'Noto Serif SC',serif; font-size:14px; letter-spacing:2px; }
+  .hall .hh .ct { font-size:9px; color:var(--muted); letter-spacing:1px; }
+  .hall .hh .ln { flex:1; border-top:1px dashed var(--line); }
+  .hall .item .no { font-size:12px; width:20px; }
+  .hall .item img { width:46px; height:61px; }
+  .hall .item .t { font-size:13px; }
+  /* ── 剧目单（片单） ── */
+  .tabs { display:flex; gap:22px; padding:14px 24px 0; border-bottom:1px solid var(--line); }
+  .tabs b { font-size:13px; font-weight:600; color:var(--muted); padding-bottom:11px; cursor:pointer; letter-spacing:1px; border-bottom:2px solid transparent; }
+  .tabs b.on { color:var(--ink); border-bottom-color:var(--verm); }
+  .tabs b i { font-style:normal; font-size:9px; color:var(--verm); vertical-align:top; margin-left:2px; }
+  .rep .item img { width:50px; height:66px; }
+  .upd { font-size:9px; color:#FBF7EF; background:var(--verm); border-radius:3px; padding:2px 5px; margin-left:6px; letter-spacing:.5px; }
+  /* ── 订阅人（我的） ── */
+  .sub-card { margin:10px 24px 0; border:1px solid var(--line); border-radius:12px; background:#FFFDF8; padding:20px 18px; display:flex; gap:16px; align-items:center; }
+  .ava { width:58px; height:58px; border-radius:50%; background:var(--panel); border:1.5px solid var(--verm); display:flex; align-items:center; justify-content:center; font-family:'Noto Serif SC',serif; font-size:22px; color:var(--verm); flex-shrink:0; }
+  .sub-card .nm { font-family:'Noto Serif SC',serif; font-size:17px; }
+  .sub-card .id { font-size:10px; color:var(--muted); margin-top:3px; letter-spacing:1px; }
+  .sub-card .st { display:flex; gap:18px; margin-top:10px; }
+  .sub-card .st div b { display:block; font-family:'Noto Serif SC',serif; font-size:16px; }
+  .sub-card .st div span { font-size:9px; color:var(--muted); letter-spacing:1px; }
+  .rows { margin:12px 24px 0; border:1px solid var(--line); border-radius:12px; background:#FFFDF8; overflow:hidden; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:15px 16px; border-bottom:1px solid var(--faint); font-size:13px; cursor:pointer; }
+  .row:last-child { border-bottom:none; }
+  .row .l { display:flex; align-items:center; gap:11px; }
+  .row .l i { font-style:normal; font-size:14px; color:var(--verm); }
+  .row .r { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .hist { margin:4px 24px 0; }
+  .hist .item .m { display:flex; gap:8px; align-items:center; }
+  .hist .when { font-size:9px; color:#B3A797; }
+  /* ── 场刊内页（详情弹层） ── */
+  .modal { position:absolute; inset:0; background:rgba(43,38,34,.42); z-index:50; display:none; }
+  .modal.open { display:block; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; top:64px; background:var(--paper); border-radius:18px 18px 0 0; overflow-y:auto;
+    background-image:repeating-linear-gradient(0deg, rgba(43,38,34,.022) 0 1px, transparent 1px 26px); }
+  .scr > * { flex-shrink:0; }
+  .sheet .close { position:absolute; right:18px; top:16px; width:30px; height:30px; border:1px solid var(--line); border-radius:50%; background:#FFFDF8; display:flex; align-items:center; justify-content:center; font-size:13px; color:#6E6355; cursor:pointer; z-index:5; }
+  .sheet .hero { display:flex; gap:16px; padding:26px 24px 18px; border-bottom:2px solid var(--ink); position:relative; }
+  .sheet .hero::after { content:''; position:absolute; left:0; right:0; bottom:3px; border-bottom:1px solid var(--ink); }
+  .sheet .hero img { width:118px; height:157px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+  .sheet .hero .kick { font-size:9px; letter-spacing:3px; color:var(--verm); }
+  .sheet .hero .t { font-family:'Noto Serif SC',serif; font-size:20px; line-height:1.55; margin:8px 0; }
+  .sheet .hero .m { font-size:11px; color:var(--muted); line-height:1.9; }
+  .sheet .syn { padding:16px 24px; font-size:12px; line-height:2; color:#57503F; }
+  .sheet .syn .kicker { display:block; margin-bottom:8px; }
+  .eps { padding:4px 24px 0; }
+  .eps .grid { display:grid; grid-template-columns:repeat(6,1fr); gap:7px; margin-top:10px; }
+  .eps .grid b { height:34px; border:1px solid var(--line); border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:11px; color:#6E6355; cursor:pointer; background:#FFFDF8; font-weight:500; }
+  .eps .grid b.seen { background:var(--verm); border-color:var(--verm); color:#FBF7EF; }
+  .sheet .acts { display:flex; gap:10px; padding:18px 24px 110px; }
+  .sheet .acts .btn { flex:1; }
+  /* ── toast ── */
+  .toast { position:absolute; left:50%; bottom:100px; transform:translateX(-50%) translateY(8px); background:var(--ink); color:var(--paper); font-size:12px; letter-spacing:1px; padding:10px 20px; border-radius:20px; opacity:0; transition:all .25s ease; z-index:60; pointer-events:none; white-space:nowrap; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="masthead">
+    <div class="l">
+      <h1 class="serif">红果<b>场刊</b></h1>
+      <div class="en">HONGGUO PLAYBILL · THEME Nº4</div>
+    </div>
+    <div class="r">
+      <p>把首页做成一份剧院场刊：报头开篇、今晚首演置顶、编号剧目目录。纸面与朱砂，衬线与细栏线——短剧在这里是「今晚的剧目」，不是信息流里的卡片。</p>
+      <div class="chips">
+        <div class="chip" style="background:#FBF7EF"></div><div class="chip" style="background:#F5EFE3"></div>
+        <div class="chip" style="background:#2B2622"></div><div class="chip" style="background:#C94426"></div>
+        <div class="chip" style="background:#9A8F80"></div>
+      </div>
+    </div>
+  </div>
+  <div class="rule"></div>
+
+  <div class="stage">
+    <div class="col-main">
+      <div class="unit main">
+        <div class="phone" id="ph-home"><div class="cam"></div></div>
+        <div class="plate-label"><span class="no">壹</span><span class="nm">场刊 · 首页</span><span class="ds">报头 / 今晚首演 / 连续放映 / 编号剧目</span></div>
+      </div>
+      <div class="unit" style="margin-top:52px">
+        <div class="phone" id="ph-me"><div class="cam"></div></div>
+        <div class="plate-label"><span class="no">肆</span><span class="nm">订阅人 · 我的</span><span class="ds">观演统计 / 观演记录 / 偏好</span></div>
+      </div>
+    </div>
+    <div class="col-side">
+      <div class="unit">
+        <div class="phone" id="ph-theater"><div class="cam"></div></div>
+        <div class="plate-label"><span class="no">贰</span><span class="nm">排片厅 · 剧场</span><span class="ds">分厅排片 / 类型筛选</span></div>
+      </div>
+      <div class="unit">
+        <div class="phone" id="ph-rep"><div class="cam"></div></div>
+        <div class="plate-label"><span class="no">叁</span><span class="nm">剧目单 · 片单</span><span class="ds">在追 / 想看 / 看完</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+/* ═══ 数据 ═══ */
+const D = [
+  {id:0, t:'装穷提亲，娶到全家嫌弃的她', g:'都市', eps:80, done:80, sc:9.2, img:'posters/zhuangqiong.jpg',
+   syn:'落魄千金隐姓埋名，一场装穷提亲的婚姻赌局，把两个家庭搅得天翻地覆。她要的从来不是豪门，是一句实话。',
+   prog:1, hist:'昨晚 21:40'},
+  {id:1, t:'灵萌仙缘：葫中藏尽世间粮', g:'仙侠', eps:81, done:81, sc:9.0, img:'posters/lingmeng.jpg',
+   syn:'一只装得下天下粮草的葫芦，一个被逐出宗门的杂役少年。修仙界的规则，从他种出第一株灵稻开始改写。',
+   prog:.64, hist:'前天 20:15'},
+  {id:2, t:'和离后我带女儿横扫魔域', g:'古言', eps:1000, done:640, sc:8.8, img:'posters/heli.jpg',
+   syn:'和离书一纸，她携幼女踏入魔域。世人笑她疯癫，直到魔尊单膝跪地喊她前辈。',
+   prog:.58, hist:'3 天前'},
+  {id:3, t:'末世轮回：我以尸躯化神明', g:'科幻', eps:310, done:120, sc:8.6, img:'posters/moshi-big.jpg',
+   syn:'轮回第七次，他终于看清末世的真相：救世的路，要用一具不腐的尸躯一步步走出来。',
+   prog:.31, hist:'5 天前'},
+  {id:4, t:'穿越 1998', g:'年代', eps:156, done:156, sc:9.4, img:'posters/kuayue.jpg',
+   syn:'一觉醒来回到 1998 年的县城。这一次，他不做时代的看客，要做掌舵人。',
+   prog:1, hist:'上周'},
+  {id:5, t:'末世度假酒店', g:'都市', eps:143, done:36, sc:8.4, img:'posters/rank4.jpg',
+   syn:'末日降临那天，酒店前台还在给最后一任客人办入住。这里不卖房，只卖「多活一天」。',
+   prog:.25, hist:'上周'},
+  {id:6, t:'穿成傀儡皇帝，反手整顿朝堂', g:'古言', eps:93, done:93, sc:9.1, img:'posters/rank5.jpg',
+   syn:'穿成任人摆布的傀儡皇帝？可笑。殿上群臣还在演忠臣，龙椅上的他已经在写名单。',
+   prog:1, hist:'上周'},
+];
+const NUM = ['壹','贰','叁','肆','伍','陆','柒'];
+const NAV = [['场刊','▣','home'],['排片厅','▦','theater'],['剧目单','▤','rep'],['我的','◉','me']];
+
+/* ═══ 渲染 ═══ */
+const esc = s => s.replace(/"/g,'&quot;');
+function bars(p){ return `<div class="bar"><i style="width:${Math.round(p*100)}%"></i></div>`; }
+function itemHTML(d, i, opts={}){
+  const small = opts.small ? ' small' : '';
+  const imgw = opts.small ? 'width:46px;height:61px' : 'width:54px;height:72px';
+  const upd = opts.upd && d.done < d.eps ? '<span class="upd">更 ' + (d.eps - d.done) + '</span>' : '';
+  return `<div class="item${small}" data-d="${d.id}">
+    <div class="no">${NUM[i%7]}</div>
+    <img src="${d.img}?v=3" style="${imgw}" alt="">
+    <div class="body">
+      <div class="t">${d.t}${upd}</div>
+      <div class="m">${d.g} · 全 ${d.eps} 集 · 已看 ${d.done} 集${opts.when ? ' · ' + opts.when : ''}</div>
+      ${opts.bar !== false ? bars(d.prog) : ''}
+    </div>
+    ${opts.act ? `<div class="act" data-act="${opts.act}" data-d="${d.id}">${opts.act}</div>` : ''}
+  </div>`;
+}
+function reelHTML(list){
+  return list.map(d => `<div class="rcard" data-d="${d.id}">
+    <img src="${d.img}?v=3" alt="">
+    <div class="t">${d.t}</div>
+    <div class="m">${d.g} · ${d.eps} 集</div>
+    ${bars(d.prog)}
+  </div>`).join('');
+}
+function scHome(){
+  const premiere = D[0];
+  return `
+  <div class="mast">
+    <div class="row"><div class="nm serif">红果<b>场刊</b></div><div class="iss">第 807 期</div></div>
+    <div class="row" style="margin-top:2px"><div class="iss">今日剧目 · 四出</div><div class="iss">2026 年 11 月 13 日</div></div>
+  </div>
+  <div class="dblr" style="margin:0 24px"></div>
+  <div class="premiere" data-d="${premiere.id}">
+    <div class="head"><span class="kicker">今晚首演 · TONIGHT</span><span class="score serif">★ ${premiere.sc}</span></div>
+    <div class="body">
+      <img src="${premiere.img}?v=3" alt="">
+      <div style="min-width:0;flex:1">
+        <div class="t serif">${premiere.t}</div>
+        <div class="m">${premiere.g} · 全 ${premiere.eps} 集 · 已更至 ${premiere.done}</div>
+        <div class="go"><span class="btn solid" data-act="play" data-d="${premiere.id}">开演</span><span class="seal serif">场<br>刊</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sect"><h3>连续放映</h3><span>全部 ›</span></div>
+  <div class="reel">${reelHTML([D[1],D[2],D[3],D[5]])}</div>
+  <div class="sect"><h3>今日剧目</h3><span>第 807 期 ›</span></div>
+  <div class="prog">${[D[6],D[4],D[3],D[1]].map((d,i)=>itemHTML(d,i,{act:'看',when:'更新至 '+d.done+' 集'})).join('')}</div>
+  <div class="motto"><div class="foot-hair">红 果 场 刊 · 今 晚 开 演</div></div>`;
+}
+function scTheater(){
+  return `
+  <div class="top"><div class="brand serif">排片<b>厅</b></div><div class="ico">⌕</div></div>
+  <div class="dblr" style="margin:0 24px"></div>
+  <div class="chips">${['全部','都市','仙侠','古言','年代','科幻'].map((c,i)=>`<b class="${i===0?'on':''}" data-chip="${c}">${c}</b>`).join('')}</div>
+  <div id="halls"></div>
+  <div class="motto"><div class="foot-hair">按 厅 入 座 · 各 有 各 的 好 戏</div></div>`;
+}
+function hallsHTML(g){
+  const groups = [
+    {nm:'都市厅', list:[D[0],D[5]]},
+    {nm:'仙侠厅', list:[D[1]]},
+    {nm:'古言厅', list:[D[2],D[6]]},
+    {nm:'年代厅', list:[D[4]]},
+    {nm:'科幻厅', list:[D[3]]},
+  ].filter(h => g==='全部' || h.nm.startsWith(g));
+  return groups.map(h => `<div class="hall">
+    <div class="hh"><span class="nm serif">${h.nm}</span><span class="ct">${h.list.length} 出</span><span class="ln"></span></div>
+    ${h.list.map((d,i)=>itemHTML(d,i,{small:true,bar:false,act:'看'})).join('')}
+  </div>`).join('');
+}
+function scRep(){
+  return `
+  <div class="top"><div class="brand serif">剧目<b>单</b></div><div class="ico">⌕</div></div>
+  <div class="dblr" style="margin:0 24px"></div>
+  <div class="tabs"><b class="on" data-tab="0">在追<i>4</i></b><b data-tab="1">想看</b><b data-tab="2">看完<i>3</i></b></div>
+  <div class="rep" id="replist"></div>
+  <div class="motto"><div class="foot-hair">一 出 戏 · 一 张 单</div></div>`;
+}
+function repHTML(tab){
+  const sets = [[D[1],D[2],D[3],D[5]],[],[D[0],D[4],D[6]]];
+  if (!sets[tab].length) return `<div style="text-align:center;padding:70px 40px;color:var(--muted)">
+    <div class="serif" style="font-size:15px;letter-spacing:2px">剧目单还空着</div>
+    <div style="font-size:11px;margin-top:10px;line-height:1.9">去排片厅挑一出，<br>开演前先把它写进单子。</div>
+    <div style="margin-top:18px"><span class="btn" style="padding:9px 26px" data-goto="theater">去排片厅</span></div>
+  </div>`;
+  return sets[tab].map((d,i)=>itemHTML(d,i,{act:tab===0?'看':'翻',upd:tab===0})).join('');
+}
+function scMe(){
+  return `
+  <div class="top"><div class="brand serif">订阅<b>人</b></div><div class="ico">✎</div></div>
+  <div class="dblr" style="margin:0 24px"></div>
+  <div class="sub-card">
+    <div class="ava serif">果</div>
+    <div style="flex:1">
+      <div class="nm serif">常看场的果友</div>
+      <div class="id">场刊订阅人 · 第 807 号</div>
+      <div class="st">
+        <div><b>23</b><span>本月观演</span></div>
+        <div><b>12 天</b><span>连续</span></div>
+        <div><b>4</b><span>剧评</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sect"><h3>观演记录</h3><span>全部 ›</span></div>
+  <div class="hist">${[D[0],D[1],D[2]].map((d,i)=>itemHTML(d,i,{bar:false,when:d.hist})).join('')}</div>
+  <div class="sect"><h3>场刊设置</h3></div>
+  <div class="rows">
+    <div class="row"><div class="l"><i>▣</i>场刊偏好</div><div class="r">都市 · 仙侠 ›</div></div>
+    <div class="row"><div class="l"><i>◐</i>外观模式</div><div class="r">纸面 ›</div></div>
+    <div class="row"><div class="l"><i>☾</i>夜间场刊</div><div class="r">22:00 后 ›</div></div>
+    <div class="row"><div class="l"><i>✉</i>开演提醒</div><div class="r">已订阅 ›</div></div>
+  </div>
+  <div class="motto"><div class="foot-hair">祝 观 演 愉 快</div></div>`;
+}
+/* ═══ 手机装配 ═══ */
+const SCREENS = { home:scHome, theater:scTheater, rep:scRep, me:scMe };
+function navHTML(cur){
+  return `<div class="nav">${NAV.map(n=>`<div data-nav="${n[2]}" class="${cur===n[2]?'on':''}"><i>${n[1]}</i>${n[0]}</div>`).join('')}</div>`;
+}
+function mount(phone, initial){
+  const st = {cur:initial, chip:'全部', tab:0, toast:null};
+  function toast(msg){
+    let t = phone.querySelector('.toast');
+    if (!t){ t = document.createElement('div'); t.className='toast'; phone.appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(st.toast); st.toast = setTimeout(()=>t.classList.remove('show'), 1600);
+  }
+  function render(){
+    phone.querySelectorAll('.scr,.modal').forEach(e=>e.remove());
+    const scr = document.createElement('div'); scr.className='scr';
+    scr.innerHTML = SCREENS[st.cur]() + (st.cur==='theater' ? '' : '') ;
+    if (st.cur==='theater') scr.querySelector('#halls').innerHTML = hallsHTML(st.chip);
+    if (st.cur==='rep') scr.querySelector('#replist').innerHTML = repHTML(st.tab);
+    scr.insertAdjacentHTML('beforeend', navHTML(st.cur));
+    phone.appendChild(scr);
+    /* 弹层 */
+    const modal = document.createElement('div'); modal.className='modal';
+    modal.innerHTML = `<div class="sheet" id="sheet"></div>`;
+    phone.appendChild(modal);
+    /* 事件 */
+    scr.addEventListener('click', e=>{
+      const nav = e.target.closest('[data-nav]');
+      if (nav){ st.cur = nav.dataset.nav; render(); return; }
+      const chip = e.target.closest('[data-chip]');
+      if (chip){ st.chip = chip.dataset.chip;
+        scr.querySelectorAll('.chips b').forEach(b=>b.classList.toggle('on', b===chip));
+        scr.querySelector('#halls').innerHTML = hallsHTML(st.chip); return; }
+      const tab = e.target.closest('[data-tab]');
+      if (tab){ st.tab = +tab.dataset.tab;
+        scr.querySelectorAll('.tabs b').forEach(b=>b.classList.toggle('on', b===tab));
+        scr.querySelector('#replist').innerHTML = repHTML(st.tab); return; }
+      const act = e.target.closest('[data-act]');
+      if (act && act.dataset.act==='play'){ openDetail(+act.dataset.d); return; }
+      if (act){ toast({看:'已排入今晚',翻:'翻到这一出'}[act.dataset.act] || '好'); return; }
+      const goto = e.target.closest('[data-goto]');
+      if (goto){ st.cur = goto.dataset.goto; render(); return; }
+      const card = e.target.closest('[data-d]');
+      if (card && !e.target.closest('.act')) openDetail(+card.dataset.d);
+    });
+    function openDetail(id){
+      const d = D[id];
+      const sheet = modal.querySelector('#sheet');
+      sheet.innerHTML = `
+        <div class="close">✕</div>
+        <div class="hero">
+          <img src="${d.img}?v=3" alt="">
+          <div style="min-width:0;flex:1">
+            <span class="kick">场刊内页 · ${d.g}厅</span>
+            <div class="t serif">${d.t}</div>
+            <div class="m">全 ${d.eps} 集 · 已更至 ${d.done} 集 · ★ ${d.sc}</div>
+            <div style="margin-top:10px">${bars(d.prog)}</div>
+            <div style="font-size:9px;color:var(--muted);margin-top:6px;letter-spacing:1px">已看 ${d.done} / ${d.eps} 集</div>
+          </div>
+        </div>
+        <div class="syn"><span class="kicker">剧 情 提 要</span>${d.syn}</div>
+        <div class="eps"><span class="kicker">场 次 · 选 集</span>
+          <div class="grid">${Array.from({length:12},(_,i)=>`<b class="${i<Math.min(12,d.done)?'seen':''}" data-ep="${i+1}">${i+1}</b>`).join('')}</div>
+        </div>
+        <div class="acts">
+          <span class="btn" data-sheet="rep">加入剧目单</span>
+          <span class="btn solid" data-sheet="play">继续看第 ${Math.min(d.done+1,d.eps)} 集</span>
+        </div>`;
+      modal.classList.add('open');
+      sheet.querySelector('.close').onclick = ()=>modal.classList.remove('open');
+      sheet.addEventListener('click', e=>{
+        if (e.target.closest('.close')) return;
+        const b = e.target.closest('[data-sheet]');
+        const ep = e.target.closest('[data-ep]');
+        if (b){ modal.classList.remove('open'); toast(b.dataset.sheet==='play' ? '已排入今晚' : '已加入剧目单'); }
+        else if (ep){ ep.classList.toggle('seen'); }
+      });
+    }
+    modal.addEventListener('click', e=>{ if (e.target===modal) modal.classList.remove('open'); });
+  }
+  render();
+}
+mount(document.getElementById('ph-home'), 'home');
+mount(document.getElementById('ph-theater'), 'theater');
+mount(document.getElementById('ph-rep'), 'rep');
+mount(document.getElementById('ph-me'), 'me');
+</script>
+</body>
+</html>

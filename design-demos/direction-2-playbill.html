@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方向二 · 红果场刊</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#CFC6B8; font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; gap:56px; padding:48px; }
+  .board { display:flex; gap:64px; align-items:center; }
+  .side { width:300px; color:#4A4238; }
+  .side h1 { font-family:'Noto Serif SC',serif; font-size:34px; color:#2B2622; letter-spacing:2px; margin-bottom:6px; }
+  .side .en { font-size:12px; letter-spacing:4px; color:#9A8F80; text-transform:uppercase; margin-bottom:22px; }
+  .side p { font-size:14px; line-height:1.9; color:#6E6355; margin-bottom:26px; }
+  .chips { display:flex; gap:8px; margin-bottom:26px; }
+  .chip { width:44px; height:44px; border-radius:8px; border:1px solid rgba(43,38,34,.12); }
+  .quote { border-left:3px solid #C94426; padding-left:14px; font-size:13px; color:#8A7D6C; line-height:1.8; }
+  .phone { width:393px; height:852px; border-radius:36px; background:#FBF7EF; border:1px solid #E4DCCB; box-shadow:0 40px 90px rgba(43,38,34,.35); overflow:hidden; position:relative; flex-shrink:0; }
+  .scr { height:100%; overflow-y:auto; background:
+    repeating-linear-gradient(0deg, rgba(43,38,34,.028) 0 1px, transparent 1px 28px),
+    #FBF7EF; }
+  .mast { padding:52px 24px 14px; border-bottom:2px solid #2B2622; display:flex; justify-content:space-between; align-items:baseline; }
+  .mast .name { font-family:'Noto Serif SC',serif; font-size:26px; color:#2B2622; letter-spacing:6px; }
+  .mast .name b { color:#C94426; }
+  .mast .date { font-size:10px; color:#9A8F80; letter-spacing:2px; }
+  .today { margin:16px 24px 0; }
+  .today .cap { font-size:10px; letter-spacing:3px; color:#C94426; margin-bottom:8px; }
+  .today .t { font-family:'Noto Serif SC',serif; font-size:17px; color:#2B2622; line-height:1.6; margin-bottom:6px; }
+  .today .m { font-size:11px; color:#9A8F80; }
+  .prog { margin:10px 24px 0; padding:16px 0 6px; border-top:1px solid #D8CFC0; }
+  .item { display:flex; gap:14px; padding:12px 0; border-bottom:1px solid #E4DCCB; }
+  .item .no { font-family:'Noto Serif SC',serif; font-size:15px; color:#C94426; width:26px; flex-shrink:0; padding-top:2px; }
+  .item .p { width:56px; height:74px; border-radius:4px; object-fit:cover; flex-shrink:0; border:1px solid #E4DCCB; }
+  .item .body { min-width:0; }
+  .item .t { font-family:'Noto Serif SC',serif; font-size:14px; color:#2B2622; line-height:1.5; }
+  .item .m { font-size:10px; color:#9A8F80; margin-top:4px; letter-spacing:.5px; }
+  .item .bar { height:3px; background:#E4DCCB; border-radius:2px; margin-top:7px; position:relative; }
+  .item .bar i { position:absolute; left:0; top:0; bottom:0; background:#C94426; border-radius:2px; }
+  .foot { text-align:center; font-size:10px; color:#B3A797; letter-spacing:2px; padding:18px 0 26px; }
+  .nav { position:absolute; bottom:0; left:0; right:0; height:76px; background:#F5EFE3; border-top:1px solid #E4DCCB; display:flex; padding:10px 8px 22px; }
+  .nav div { flex:1; text-align:center; font-size:10px; color:#9A8F80; padding-top:4px; }
+  .nav div.on { color:#C94426; }
+  .nav i { display:block; font-style:normal; font-size:17px; margin-bottom:3px; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="side">
+    <h1>红果场刊</h1>
+    <div class="en">HONGGUO PLAYBILL · 方向二</div>
+    <p>把首页做成一份剧院场刊：米白纸面、衬线剧目、朱砂印章。今晚的短剧是节目单上的剧目，用户翻场刊选今晚看哪出。</p>
+    <div class="chips">
+      <div class="chip" style="background:#FBF7EF"></div>
+      <div class="chip" style="background:#2B2622"></div>
+      <div class="chip" style="background:#C94426"></div>
+      <div class="chip" style="background:#9A8F80"></div>
+      <div class="chip" style="background:#E4DCCB"></div>
+    </div>
+    <div class="quote">form 来自内容：短剧和剧场剧目同构——有剧目名、有集数、有「今晚更新」，场刊的编号条目和朱砂印章就是从内容里长出来的。</div>
+  </div>
+  <div class="phone">
+    <div class="scr">
+      <div class="mast">
+        <div class="name">红果<b>场刊</b></div>
+        <div class="date">今日剧目 · 第 807 期</div>
+      </div>
+      <div class="today">
+        <div class="cap">今晚首演 · 剧场热映</div>
+        <div class="t">装穷提亲，娶到全家嫌弃的她</div>
+        <div class="m">都市 · 全 80 集 · 已更至 80 · ⭐ 9.2</div>
+      </div>
+      <div class="prog">
+        <div class="item">
+          <div class="no">壹</div>
+          <img class="p" src="posters/zhuangqiong.jpg?v=2">
+          <div class="body">
+            <div class="t">装穷提亲，娶到全家嫌弃的她</div>
+            <div class="m">都市 · 全 80 集 · 已更至 80</div>
+            <div class="bar"><i style="width:100%"></i></div>
+          </div>
+        </div>
+        <div class="item">
+          <div class="no">贰</div>
+          <img class="p" src="posters/lingmeng.jpg?v=2">
+          <div class="body">
+            <div class="t">灵萌仙缘：葫中藏尽世间粮</div>
+            <div class="m">仙侠 · 全 81 集 · 已更至 81</div>
+            <div class="bar"><i style="width:100%"></i></div>
+          </div>
+        </div>
+        <div class="item">
+          <div class="no">叁</div>
+          <img class="p" src="posters/heli.jpg?v=2">
+          <div class="body">
+            <div class="t">和离后我带女儿横扫魔域</div>
+            <div class="m">古言 · 全 1000 集 · 已更至 1000</div>
+            <div class="bar"><i style="width:88%"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="foot">—— 红 果 场 刊 · 今 晚 开 演 ——</div>
+      <div class="nav">
+        <div class="on"><i>▣</i>场刊</div><div><i>⌕</i>找戏</div><div><i>▤</i>片单</div><div><i>◉</i>我的</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方向三 · 黄昏画廊</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#3A2A38; font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; gap:56px; padding:48px; }
+  .board { display:flex; gap:64px; align-items:center; }
+  .side { width:300px; color:#E3D5DC; }
+  .side h1 { font-family:'Noto Serif SC',serif; font-size:34px; color:#F5EAE0; letter-spacing:2px; margin-bottom:6px; }
+  .side .en { font-size:12px; letter-spacing:4px; color:#A08D9B; text-transform:uppercase; margin-bottom:22px; }
+  .side p { font-size:14px; line-height:1.9; color:#C4AEB9; margin-bottom:26px; }
+  .chips { display:flex; gap:8px; margin-bottom:26px; }
+  .chip { width:44px; height:44px; border-radius:8px; border:1px solid rgba(255,255,255,.1); }
+  .quote { border-left:2px solid #E89A5D; padding-left:14px; font-size:13px; color:#A08D9B; line-height:1.8; }
+  .phone { width:393px; height:852px; border-radius:36px; background:#241B26; border:1px solid #45344A; box-shadow:0 40px 90px rgba(0,0,0,.6); overflow:hidden; position:relative; flex-shrink:0; }
+  .scr { height:100%; overflow-y:auto; background:linear-gradient(175deg,#2E2130 0%,#3A2438 34%,#4A2C3A 62%,#5C3A38 100%); }
+  .top { padding:56px 22px 0; display:flex; justify-content:space-between; align-items:center; }
+  .logo { font-family:'Noto Serif SC',serif; font-size:21px; color:#F5EAE0; letter-spacing:2px; }
+  .logo b { color:#E89A5D; }
+  .search { width:38px; height:38px; border:1px solid rgba(245,234,224,.22); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#C4AEB9; font-size:15px; }
+  .hero { margin:20px 22px 0; border-radius:18px; overflow:hidden; position:relative; height:210px; box-shadow:0 18px 40px rgba(0,0,0,.45); }
+  .hero img { width:100%; height:100%; object-fit:cover; }
+  .hero .veil { position:absolute; inset:0; background:linear-gradient(180deg,transparent 30%,rgba(30,18,28,.92) 100%); }
+  .hero .cap { position:absolute; left:18px; bottom:16px; right:18px; }
+  .hero .cap .s { font-size:9px; letter-spacing:3px; color:#E89A5D; margin-bottom:6px; }
+  .hero .cap .t { font-family:'Noto Serif SC',serif; font-size:18px; color:#FFF; line-height:1.5; }
+  .hero .cap .m { font-size:10px; color:rgba(255,255,255,.62); margin-top:5px; }
+  .sect { display:flex; justify-content:space-between; align-items:baseline; margin:26px 22px 0; }
+  .sect h3 { font-family:'Noto Serif SC',serif; font-size:15px; color:#F5EAE0; letter-spacing:1px; }
+  .sect span { font-size:11px; color:#A08D9B; }
+  .gal { margin:14px 22px 0; column-count:2; column-gap:12px; }
+  .plate { break-inside:avoid; margin-bottom:14px; background:rgba(245,234,224,.06); border:1px solid rgba(245,234,224,.1); border-radius:12px; padding:7px 7px 10px; }
+  .plate img { width:100%; border-radius:7px; display:block; }
+  .plate .t { font-size:11px; color:#EBDDE3; line-height:1.5; margin-top:8px; }
+  .plate .m { font-size:9px; color:#A08D9B; margin-top:3px; letter-spacing:.5px; }
+  .plate.tall img { height:200px; object-fit:cover; }
+  .plate.wide img { height:110px; object-fit:cover; }
+  .nav { position:absolute; bottom:0; left:0; right:0; height:76px; background:rgba(36,27,38,.9); border-top:1px solid rgba(245,234,224,.12); display:flex; padding:10px 8px 22px; backdrop-filter:blur(8px); }
+  .nav div { flex:1; text-align:center; font-size:10px; color:#A08D9B; padding-top:4px; }
+  .nav div.on { color:#E89A5D; }
+  .nav i { display:block; font-style:normal; font-size:17px; margin-bottom:3px; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="side">
+    <h1>黄昏画廊</h1>
+    <div class="en">DUSK GALLERY · 方向三</div>
+    <p>把首页挂成一间黄昏画廊：暮色渐变墙、展签式海报、两列错落展墙。短剧封面是画作，用户在暮色里沿展墙散步选片。</p>
+    <div class="chips">
+      <div class="chip" style="background:#2E2130"></div>
+      <div class="chip" style="background:#4A2C3A"></div>
+      <div class="chip" style="background:#E89A5D"></div>
+      <div class="chip" style="background:#F5EAE0"></div>
+      <div class="chip" style="background:#A08D9B"></div>
+    </div>
+    <div class="quote">form 来自内容：短剧封面色彩浓烈像油画——暮色渐变墙承接封面色温，展签只留剧名与集数，把封面当画挂。</div>
+  </div>
+  <div class="phone">
+    <div class="scr">
+      <div class="top">
+        <div class="logo">红果<b>画廊</b></div>
+        <div class="search">⌕</div>
+      </div>
+      <div class="hero">
+        <img src="posters/zhuangqiong.jpg?v=2">
+        <div class="veil"></div>
+        <div class="cap">
+          <div class="s">本季特展 · 今日推荐</div>
+          <div class="t">装穷提亲，娶到全家嫌弃的她</div>
+          <div class="m">都市 · 全 80 集 · 已更至 80</div>
+        </div>
+      </div>
+      <div class="sect"><h3>继续观展</h3><span>全部 ›</span></div>
+      <div class="gal">
+        <div class="plate tall">
+          <img src="posters/lingmeng.jpg?v=2">
+          <div class="t">灵萌仙缘：葫中藏尽世间粮</div>
+          <div class="m">仙侠 · 全 81 集</div>
+        </div>
+        <div class="plate wide">
+          <img src="posters/heli.jpg?v=2">
+          <div class="t">和离后我带女儿横扫魔域</div>
+          <div class="m">古言 · 全 1000 集</div>
+        </div>
+        <div class="plate wide">
+          <img src="posters/moshi-big.jpg?v=2">
+          <div class="t">末世轮回：我以尸躯化神明</div>
+          <div class="m">科幻 · 全 310 集</div>
+        </div>
+        <div class="plate tall">
+          <img src="posters/kuayue.jpg?v=2">
+          <div class="t">穿越 1998</div>
+          <div class="m">年代 · 全 156 集</div>
+        </div>
+      </div>
+      <div style="height:90px"></div>
+      <div class="nav">
+        <div class="on"><i>▣</i>展厅</div><div><i>⌕</i>寻展</div><div><i>▤</i>片单</div><div><i>◉</i>我的</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

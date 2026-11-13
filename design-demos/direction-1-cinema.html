@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>方向一 · 胶片放映厅</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#191512; font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif; min-height:100vh; display:flex; align-items:center; justify-content:center; gap:56px; padding:48px; }
+  .board { display:flex; gap:64px; align-items:center; }
+  .side { width:300px; color:#D8CFC4; }
+  .side h1 { font-family:'Noto Serif SC',serif; font-size:34px; color:#F2E7D5; letter-spacing:2px; margin-bottom:6px; }
+  .side .en { font-size:12px; letter-spacing:4px; color:#8A7D6C; text-transform:uppercase; margin-bottom:22px; }
+  .side p { font-size:14px; line-height:1.9; color:#B3A797; margin-bottom:26px; }
+  .chips { display:flex; gap:8px; margin-bottom:26px; }
+  .chip { width:44px; height:44px; border-radius:8px; border:1px solid rgba(255,255,255,.08); }
+  .quote { border-left:2px solid #E8A33D; padding-left:14px; font-size:13px; color:#8A7D6C; line-height:1.8; }
+  .phone { width:393px; height:852px; border-radius:36px; background:#0F0D0B; border:1px solid #2E2822; box-shadow:0 40px 90px rgba(0,0,0,.65); overflow:hidden; position:relative; flex-shrink:0; }
+  .cam { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:14px; height:14px; border-radius:50%; background:#000; border:1px solid #26221E; z-index:9; }
+  .scr { height:100%; overflow-y:auto; background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg,#171310 0%,#12100D 60%,#0E0C0A 100%); }
+  .top { padding:56px 22px 0; display:flex; justify-content:space-between; align-items:baseline; }
+  .logo { font-family:'Noto Serif SC',serif; font-size:22px; color:#F2E7D5; letter-spacing:3px; }
+  .logo b { color:#E8A33D; }
+  .search { width:40px; height:40px; border:1px solid #3A322A; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#B3A797; font-size:15px; }
+  .marquee { margin:20px 22px 0; border:1px solid #3A322A; border-radius:14px; padding:16px 18px; background:linear-gradient(135deg,#221B14,#1A140F); position:relative; overflow:hidden; }
+  .marquee::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 85% 20%, rgba(232,163,61,.16), transparent 55%); }
+  .now { font-size:10px; letter-spacing:3px; color:#E8A33D; margin-bottom:8px; }
+  .mtitle { font-family:'Noto Serif SC',serif; font-size:19px; color:#F2E7D5; line-height:1.5; margin-bottom:8px; }
+  .mmeta { font-size:11px; color:#8A7D6C; }
+  .play { position:absolute; right:18px; bottom:16px; background:#E8A33D; color:#1A140F; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; }
+  .cont { margin:22px 22px 0; display:flex; justify-content:space-between; align-items:baseline; }
+  .cont h3 { font-family:'Noto Serif SC',serif; font-size:15px; color:#F2E7D5; letter-spacing:1px; }
+  .cont span { font-size:11px; color:#8A7D6C; }
+  .shelf { display:flex; gap:12px; overflow-x:auto; padding:14px 22px 6px; scrollbar-width:none; }
+  .shelf::-webkit-scrollbar{ display:none; }
+  .card { flex-shrink:0; width:96px; }
+  .card .p { width:96px; height:128px; border-radius:8px; object-fit:cover; border:1px solid #2E2822; box-shadow:0 8px 18px rgba(0,0,0,.5); }
+  .card .t { font-size:10px; color:#C9BDAE; margin-top:7px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card .m { font-size:9px; color:#6E6355; margin-top:2px; }
+  .strip-head { display:flex; justify-content:space-between; align-items:baseline; margin:24px 22px 0; }
+  .strip-head h4 { font-family:'Noto Serif SC',serif; font-size:14px; color:#E8A33D; letter-spacing:2px; }
+  .strip-head span { font-size:10px; color:#6E6355; }
+  .nav { position:absolute; bottom:0; left:0; right:0; height:76px; background:rgba(15,13,11,.92); border-top:1px solid #2A241E; display:flex; padding:10px 8px 22px; backdrop-filter:blur(8px); }
+  .nav div { flex:1; text-align:center; font-size:10px; color:#6E6355; padding-top:4px; }
+  .nav div.on { color:#E8A33D; }
+  .nav i { display:block; font-style:normal; font-size:17px; margin-bottom:3px; }
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="side">
+    <h1>胶片放映厅</h1>
+    <div class="en">CINEMA MARQUEE · 方向一</div>
+    <p>把首页做成一座深夜放映厅：炭黑大厅、琥珀灯牌、横向片架。剧是胶片，分类是放映厅的厅牌，用户在片架间漫步选片。</p>
+    <div class="chips">
+      <div class="chip" style="background:#171310"></div>
+      <div class="chip" style="background:#E8A33D"></div>
+      <div class="chip" style="background:#F2E7D5"></div>
+      <div class="chip" style="background:#8A7D6C"></div>
+      <div class="chip" style="background:#1A140F"></div>
+    </div>
+    <div class="quote">form 来自内容：短剧封面本身高饱和、强戏剧感——深炭底把封面衬成灯箱，琥珀只留给「正在放映」和导航，让封面自己发光。</div>
+  </div>
+  <div class="phone">
+    <div class="cam"></div>
+    <div class="scr">
+      <div class="top">
+        <div class="logo">红果<b>放映厅</b></div>
+        <div class="search">⌕</div>
+      </div>
+      <div class="marquee">
+        <div class="now">NOW SHOWING · 今日推荐</div>
+        <div class="mtitle">装穷提亲，娶到全家嫌弃的她</div>
+        <div class="mmeta">都市 · 全 80 集 · 已更至 80</div>
+        <div class="play">▶ 放映</div>
+      </div>
+      <div class="cont"><h3>继续观看</h3><span>全部 ›</span></div>
+      <div class="shelf">
+        <div class="card"><img class="p" src="posters/zhuangqiong.jpg?v=2"><div class="t">装穷提亲，娶到全家嫌弃的她</div><div class="m">第 3 集 · 01:30</div></div>
+        <div class="card"><img class="p" src="posters/lingmeng.jpg?v=2"><div class="t">灵萌仙缘：葫中藏尽世间粮</div><div class="m">第 12 集 · 00:45</div></div>
+        <div class="card"><img class="p" src="posters/heli.jpg?v=2"><div class="t">和离后我带女儿横扫魔域</div><div class="m">第 88 集 · 01:12</div></div>
+      </div>
+      <div class="strip-head"><h4>热度放映厅</h4><span>热度精选 ›</span></div>
+      <div class="shelf">
+        <div class="card"><img class="p" src="posters/moshi-big.jpg?v=2"><div class="t">末世轮回：我以尸躯化神明</div><div class="m">全 310 集</div></div>
+        <div class="card"><img class="p" src="posters/kuayue.jpg?v=2"><div class="t">穿越 1998</div><div class="m">全 156 集</div></div>
+        <div class="card"><img class="p" src="posters/heli.jpg?v=2"><div class="t">和离后我带女儿横扫魔域</div><div class="m">全 1000 集</div></div>
+        <div class="card"><img class="p" src="posters/lingmeng.jpg?v=2"><div class="t">灵萌仙缘：葫中藏尽世间粮</div><div class="m">全 81 集</div></div>
+      </div>
+      <div class="strip-head"><h4>为晚推荐</h4><span>为你推荐 ›</span></div>
+      <div class="shelf">
+        <div class="card"><img class="p" src="posters/rank1.jpg?v=2"><div class="t">装穷提亲，娶到全家嫌弃的她</div><div class="m">全 80 集</div></div>
+        <div class="card"><img class="p" src="posters/rank4.jpg?v=2"><div class="t">末世度假酒店</div><div class="m">全 143 集</div></div>
+        <div class="card"><img class="p" src="posters/rank5.jpg?v=2"><div class="t">穿成傀儡皇帝，反手整顿朝堂</div><div class="m">全 93 集</div></div>
+      </div>
+      <div style="height:90px"></div>
+      <div class="nav">
+        <div class="on"><i>▣</i>放映厅</div><div><i>⌕</i>找片</div><div><i>▤</i>片单</div><div><i>◉</i>我的</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
