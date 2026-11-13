@@ -234,7 +234,6 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     }
 
     init {
-        HomeCache.warm(application)
         mutableState.update { it.copy(favorites = library.state.value.favorites, history = library.state.value.history) }
         viewModelScope.launch {
             library.state.collect { snapshot -> mutableState.update {
@@ -288,19 +287,14 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (append && (current.home.loading || current.home.loadingMore || !current.home.hasMore)) return
         val version = ++homeVersion
         homeJob?.cancel()
-        // 冷启动/换频道先种上次缓存：有内容的屏不出转圈，网络回来整页替换。
-        val previous = if (append) current.home else FeedState(items = HomeCache.cached(current.homeFeed))
+        val previous = if (append) current.home else FeedState()
         mutableState.update { it.copy(home = previous.copy(loading = !append, loadingMore = append, error = null)) }
         homeJob = viewModelScope.launch {
             try {
                 val page = if (current.homeFeed == HomeFeed.GUESS) guessPage(append)
-                    else repository.discover(current.homeFeed, if (append) previous.nextOffset else 0,
-                        // 非 append 恒为空：缓存种子只用于先渲染，不能把上次内容当「已看」发给上游去重。
-                        if (append) previous.items.map { it.id } else emptyList())
+                    else repository.discover(current.homeFeed, if (append) previous.nextOffset else 0, previous.items.map { it.id })
                 if (version != homeVersion || !currentCoroutineContext().isActive) return@launch
-                val merged = mergePage(previous, page, append)
-                mutableState.update { it.copy(home = merged) }
-                if (merged.items.isNotEmpty()) HomeCache.store(current.homeFeed, merged.items, getApplication())
+                mutableState.update { it.copy(home = mergePage(previous, page, append)) }
             } catch (error: CancellationException) { throw error }
             catch (error: Exception) {
                 if (version == homeVersion) mutableState.update { it.copy(home = previous.copy(
