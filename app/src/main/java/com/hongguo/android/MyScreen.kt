@@ -19,7 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -517,60 +520,104 @@ private fun ImmersiveMine(state: HongguoUiState, model: HongguoViewModel, update
 @Composable
 private fun CardsMine(state: HongguoUiState, model: HongguoViewModel, updateState: UpdateUiState, updateModel: UpdateViewModel,
                       accountName: String?, accountStatus: String, accountAvatar: String?, onAccount: () -> Unit, openSettings: () -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag("my_screen").padding(horizontal = 12.dp),
+    val palette = LocalHongguoPalette.current
+    // 深色台头在浅色主题用墨色块，深色主题用卡片色：文字/头像颜色跟着切换。
+    val headBg = if (palette.isDark) CardSurface else Color(0xFF17181B)
+    val headInk = if (palette.isDark) Ink else Color.White
+    val headMuted = if (palette.isDark) Muted else Color(0xFF9CA0A8)
+    LazyColumn(Modifier.fillMaxSize().testTag("my_screen"),
         contentPadding = PaddingValues(0.dp).plusNavClearance(),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 20.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(Modifier.size(60.dp).clip(CircleShape).background(CardSurface).border(1.dp, Line, CircleShape), Alignment.Center) {
-                    Icon(Icons.Outlined.PersonOutline, null, Modifier.size(28.dp), tint = Muted)
-                    AccountAvatarImage(accountAvatar)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(accountName ?: "未登录", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(accountStatus, color = Muted, fontSize = 13.sp)
-                }
-                Surface(onClick = onAccount, shape = RoundedCornerShape(50), color = Ink,
-                    modifier = Modifier.heightIn(min = 36.dp).testTag("my_account_card")) {
-                    Text(if (accountName == null) "登录" else "账号", color = Canvas, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Box(Modifier.fillMaxWidth().background(headBg,
+                RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 38.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(56.dp).clip(CircleShape)
+                        .background(if (palette.isDark) Cream else Color(0xFF2A2B30))
+                        .border(2.dp, if (palette.isDark) Line else Color(0xFF3A3B42), CircleShape), Alignment.Center) {
+                        Icon(Icons.Outlined.PersonOutline, null, Modifier.size(26.dp), tint = headMuted)
+                        AccountAvatarImage(accountAvatar)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(accountName ?: "未登录", color = headInk, fontSize = 19.sp, fontWeight = FontWeight.Black,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(accountStatus, color = headMuted, fontSize = 12.sp)
+                    }
+                    Surface(onClick = onAccount, shape = RoundedCornerShape(18.dp), color = Orange,
+                        modifier = Modifier.heightIn(min = 36.dp).testTag("my_account_card")) {
+                        Text(if (accountName == null) "登录" else "账号", color = OnOrange, fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp))
+                    }
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(Triple("本机看过", state.history.size, AppTab.HISTORY), Triple("本机收藏", state.favorites.size, AppTab.FAVORITES))
-                    .forEach { (label, count, tab) ->
-                        Surface(onClick = { model.selectTab(tab) }, color = CardSurface, shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f).testTag(if (tab == AppTab.HISTORY) "my_history" else "my_favorites")) {
-                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Icon(if (tab == AppTab.HISTORY) Icons.Outlined.History else Icons.Outlined.StarBorder, null,
-                                        Modifier.size(14.dp), tint = Muted)
-                                    Text(label, color = Muted, fontSize = 12.sp)
-                                }
-                                Row(verticalAlignment = Alignment.Bottom) {
-                                    Text("$count", color = Ink, fontSize = 26.sp, fontWeight = FontWeight.Black)
-                                    Text(" 部", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
-                                }
-                            }
+            // 磁贴三联浮出台头下沿；上移后补一段空隙，让下一节保持 12dp 节奏。
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).offset(y = (-20).dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                listOf(
+                    Triple("看过", "${state.history.size}", "my_history") { model.openPlayHistory(local = true) },
+                    Triple("收藏", "${state.favorites.size}", "my_favorites") { model.selectTab(AppTab.LOCAL_FAVORITES) },
+                    Triple("云片单", "云", "my_cloud") { model.selectTab(AppTab.FAVORITES); model.selectLibrarySource(true) },
+                ).forEach { (label, value, tag, action) ->
+                    Surface(onClick = action, color = CardSurface, shape = RoundedCornerShape(14.dp),
+                        shadowElevation = 4.dp, modifier = Modifier.weight(1f).testTag(tag)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 13.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(value, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                            Text(label, color = Muted, fontSize = 11.sp)
                         }
                     }
-            }
-        }
-        item {
-            Surface(color = CardSurface, shape = RoundedCornerShape(14.dp)) {
-                MyMenuRow("云片单", "账号收藏、历史与预约", "my_cloud", Icons.Outlined.CloudQueue) {
-                    model.selectTab(AppTab.FAVORITES); model.selectLibrarySource(true)
                 }
             }
         }
-        item { MyServiceMenu("主题样式、自动连播、预加载与更新", state.themeStyle.label, updateState, updateModel, onAccount, openSettings) }
+        if (state.history.isNotEmpty()) item {
+            Column(Modifier.offset(y = (-8).dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("接着看", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Black)
+                    Text("全部 ›", color = Muted, fontSize = 11.sp,
+                        modifier = Modifier.clickable { model.openPlayHistory(local = true) }.padding(4.dp))
+                }
+                LazyRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(9.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp)) {
+                    items(state.history.take(8), key = { "cards_mine_${it.card.id}" }) { entry ->
+                        Column(Modifier.width(92.dp).clickable { model.openLibrary(entry) }
+                            .testTag("cards_mine_entry_${entry.card.id}")) {
+                            Box(Modifier.fillMaxWidth().aspectRatio(.72f).clip(RoundedCornerShape(8.dp))) {
+                                PosterImage(entry.card.cover, Modifier.fillMaxSize())
+                            }
+                            Text(entry.card.title, color = Ink, fontSize = 10.sp, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                            WatchProgress(entry, track = Cream, fill = Orange,
+                                modifier = Modifier.fillMaxWidth().padding(top = 5.dp))
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Surface(onClick = openSettings, color = CardSurface, shape = RoundedCornerShape(14.dp),
+                shadowElevation = 4.dp, modifier = Modifier.padding(horizontal = 16.dp)
+                    .offset(y = if (state.history.isEmpty()) 0.dp else (-8).dp)) {
+                MyMenuRow("设置", "主题样式、播放与更新", "my_settings", trailing = state.themeStyle.label, onClick = openSettings)
+            }
+        }
+        item {
+            Surface(color = CardSurface, shape = RoundedCornerShape(14.dp), shadowElevation = 4.dp,
+                modifier = Modifier.padding(horizontal = 16.dp)) {
+                Column {
+                    MyMenuRow("账号与隐私", "登录方式、云片单与账号管理", "my_account", onClick = onAccount)
+                    MenuDivider()
+                    MyMenuRow("检查更新", if (updateState.checking) "正在检查新版本…" else "当前版本 ${BuildConfig.VERSION_NAME}",
+                        "update_check", busy = updateState.checking) { updateModel.checkForUpdates() }
+                }
+            }
+        }
         item {
             Text("本机收藏与观看记录仅保存在这台设备。", color = Muted, fontSize = 12.sp,
-                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, bottom = 24.dp))
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(start = 0.dp, bottom = 24.dp))
         }
     }
 }

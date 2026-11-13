@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>三方向 · 我的页重设计（WARM/IMMERSIVE/CARDS）</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#EFEAE0; font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;
+         min-height:100vh; padding:44px 40px; color:#2B2622; }
+  .masthead { text-align:center; margin-bottom:14px; }
+  .masthead h1 { font-size:26px; letter-spacing:6px; }
+  .masthead h1 b { color:#C94426; }
+  .masthead p { font-size:12px; color:#8A7D6C; margin-top:8px; letter-spacing:1px; }
+  .rule { border-top:2px solid #2B2622; position:relative; max-width:640px; margin:18px auto 8px; }
+  .rule::after { content:''; position:absolute; left:0; right:0; top:3px; border-top:1px solid #2B2622; }
+  .board { display:flex; gap:36px; justify-content:center; align-items:flex-start; margin-top:36px; flex-wrap:wrap; }
+  .unit { width:393px; }
+  .unit .plate { text-align:center; margin:16px 0 12px; }
+  .unit .plate .no { font-family:'Noto Serif SC',serif; color:#C94426; font-size:15px; margin-right:8px; }
+  .unit .plate .nm { font-family:'Noto Serif SC',serif; font-size:17px; letter-spacing:2px; }
+  .unit .plate .ds { font-size:11px; color:#9A8F80; margin-top:4px; }
+  .phone { width:393px; height:852px; border-radius:34px; background:#1E1A16; border:1px solid #3A342E;
+           box-shadow:0 24px 60px rgba(43,38,34,.3); overflow:hidden; position:relative; }
+  .cam { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:13px; height:13px;
+         border-radius:50%; background:#0D0B09; border:1px solid #33302B; z-index:40; }
+  .serif { font-family:'Noto Serif SC','Songti SC',serif; }
+  /* ═══ 方向一 暖白 ═══ */
+  .w-scr { height:100%; overflow-y:auto; background:#FCF8F4; }
+  .w-top { padding:56px 24px 10px; display:flex; justify-content:space-between; align-items:center; }
+  .w-top .t { font-size:26px; font-weight:700; color:#292421; }
+  .w-top .t b { color:#C94426; }
+  .w-top .ic { width:38px; height:38px; border-radius:50%; background:#fff; border:1px solid #E5DCD5;
+               display:flex; align-items:center; justify-content:center; color:#6B625C; font-size:15px; }
+  .w-hero { margin:8px 20px 0; background:linear-gradient(135deg,#FF6B3D 0%,#C94426 100%); border-radius:20px;
+            padding:22px 20px; color:#fff; position:relative; overflow:hidden; cursor:pointer; }
+  .w-hero::after { content:''; position:absolute; right:-30px; top:-30px; width:140px; height:140px;
+                   border-radius:50%; background:rgba(255,255,255,.12); }
+  .w-hero .ava { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.25);
+                 border:2px solid rgba(255,255,255,.7); display:flex; align-items:center; justify-content:center;
+                 font-size:22px; font-weight:700; }
+  .w-hero .nm { font-size:18px; font-weight:700; margin-top:10px; }
+  .w-hero .st { font-size:12px; opacity:.85; margin-top:4px; }
+  .w-hero .chips { display:flex; gap:8px; margin-top:14px; position:relative; z-index:1; }
+  .w-hero .chip { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35); border-radius:16px;
+                  padding:5px 12px; font-size:11px; backdrop-filter:blur(4px); }
+  .w-stats { display:flex; gap:10px; margin:14px 20px 0; }
+  .w-stat { flex:1; background:#fff; border-radius:16px; padding:14px 16px; cursor:pointer; border:1px solid #F0E8E0; }
+  .w-stat .v { font-size:24px; font-weight:800; color:#292421; }
+  .w-stat .v span { font-size:12px; color:#9A8F80; font-weight:400; margin-left:3px; }
+  .w-stat .l { font-size:11px; color:#6B625C; margin-top:3px; display:flex; align-items:center; gap:5px; }
+  .w-stat .l i { color:#C94426; font-style:normal; }
+  .w-week { margin:16px 20px 0; }
+  .w-week h4 { font-size:15px; color:#292421; font-weight:700; }
+  .w-week .bars { display:flex; gap:7px; margin-top:10px; align-items:flex-end; height:64px; }
+  .w-week .b { flex:1; background:#FFEADF; border-radius:6px 6px 3px 3px; position:relative; }
+  .w-week .b.on { background:linear-gradient(180deg,#FF8A5C,#C94426); }
+  .w-week .b span { position:absolute; bottom:-18px; left:0; right:0; text-align:center; font-size:9px; color:#9A8F80; }
+  .w-menu { margin:34px 20px 0; background:#fff; border-radius:16px; overflow:hidden; border:1px solid #F0E8E0; }
+  .w-row { display:flex; align-items:center; gap:12px; padding:15px 16px; font-size:14px; color:#292421;
+           border-bottom:1px solid #F5EDE5; }
+  .w-row:last-child { border-bottom:none; }
+  .w-row .ti { width:32px; height:32px; border-radius:10px; background:#FFEADF; display:flex; align-items:center;
+               justify-content:center; font-size:15px; }
+  .w-row .bd { flex:1; }
+  .w-row .bd .s { font-size:11px; color:#9A8F80; margin-top:2px; }
+  .w-row .r { font-size:12px; color:#9A8F80; }
+  .w-foot { text-align:center; font-size:11px; color:#B8ACA3; padding:26px 0 90px; }
+  /* ═══ 方向二 沉浸 ═══ */
+  .i-scr { height:100%; overflow-y:auto; background:#0E0E11; color:#F5F5F7; }
+  .i-hero { height:280px; background:linear-gradient(180deg,#1E2030 0%,#141520 60%,#0E0E11 100%);
+            position:relative; padding:70px 24px 0; }
+  .i-hero::before { content:''; position:absolute; left:0; right:0; top:0; height:160px;
+      background:radial-gradient(ellipse at 70% 0%, rgba(99,102,241,.18), transparent 60%); }
+  .i-hero::after { content:''; position:absolute; left:20px; right:20px; top:220px; height:1px;
+      background:linear-gradient(90deg, transparent, rgba(245,245,247,.18), transparent); }
+  .i-ava { width:72px; height:72px; border-radius:24px; background:#26262D; border:1px solid #3A3A45;
+           display:flex; align-items:center; justify-content:center; font-size:26px; color:#8B8FF5; }
+  .i-nm { font-size:22px; font-weight:800; margin-top:12px; }
+  .i-st { font-size:12px; color:#8E8E98; margin-top:4px; }
+  .i-tags { display:flex; gap:8px; margin-top:14px; }
+  .i-tag { font-size:11px; color:#8B8FF5; background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.3);
+           padding:4px 12px; border-radius:14px; }
+  .i-nums { display:flex; margin:20px 24px 0; }
+  .i-num { flex:1; text-align:center; }
+  .i-num .v { font-size:26px; font-weight:800; }
+  .i-num .v em { font-style:normal; font-size:12px; color:#6E6E78; margin-left:2px; }
+  .i-num .l { font-size:10px; color:#8E8E98; margin-top:4px; letter-spacing:1px; }
+  .i-num + .i-num { border-left:1px solid #26262D; }
+  .i-sec { padding:0 24px; }
+  .i-sec h4 { font-size:14px; color:#F5F5F7; margin:26px 0 12px; display:flex; align-items:center; gap:8px; }
+  .i-sec h4::before { content:''; width:3px; height:14px; background:#8B8FF5; border-radius:2px; }
+  .i-card { background:#1A1A1F; border:1px solid #26262D; border-radius:14px; padding:14px 16px;
+            display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+  .i-card img { width:44px; height:58px; border-radius:6px; object-fit:cover; }
+  .i-card .bd { flex:1; min-width:0; }
+  .i-card .t { font-size:14px; font-weight:600; }
+  .i-card .m { font-size:11px; color:#8E8E98; margin-top:4px; }
+  .i-card .bar { height:3px; background:#26262D; border-radius:2px; margin-top:8px; }
+  .i-card .bar i { display:block; height:3px; background:linear-gradient(90deg,#6366F1,#8B8FF5); border-radius:2px; }
+  .i-card .ep { font-size:11px; color:#8B8FF5; flex-shrink:0; }
+  .i-foot { text-align:center; font-size:11px; color:#5A5A64; padding:28px 0 90px; }
+  /* ═══ 方向三 卡片 ═══ */
+  .c-scr { height:100%; overflow-y:auto; background:#F3F4F6; }
+  .c-top { background:#17181B; padding:56px 20px 20px; border-radius:0 0 24px 24px; color:#fff; }
+  .c-top .row { display:flex; align-items:center; gap:14px; }
+  .c-ava { width:56px; height:56px; border-radius:50%; background:#2A2B30; border:2px solid #3A3B42;
+           display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .c-top .nm { font-size:19px; font-weight:800; }
+  .c-top .st { font-size:12px; color:#9CA0A8; margin-top:3px; }
+  .c-top .btn { margin-left:auto; background:#D42E24; font-size:13px; font-weight:700; padding:8px 18px;
+                border-radius:18px; cursor:pointer; }
+  .c-tiles { display:flex; gap:9px; margin:-14px 16px 0; position:relative; }
+  .c-tile { flex:1; background:#fff; border-radius:14px; padding:13px 0; text-align:center;
+            box-shadow:0 4px 14px rgba(23,24,27,.08); }
+  .c-tile .v { font-size:20px; font-weight:800; color:#17181B; }
+  .c-tile .v em { font-style:normal; font-size:11px; color:#9CA0A8; }
+  .c-tile .l { font-size:10px; color:#9CA0A8; margin-top:3px; }
+  .c-sec { display:flex; justify-content:space-between; align-items:baseline; margin:18px 18px 10px; }
+  .c-sec h4 { font-size:15px; font-weight:800; color:#17181B; }
+  .c-sec span { font-size:11px; color:#9CA0A8; }
+  .c-strip { display:flex; gap:9px; overflow-x:auto; padding:0 16px 4px; scrollbar-width:none; }
+  .c-strip::-webkit-scrollbar { display:none; }
+  .c-h { flex-shrink:0; width:92px; background:#fff; border-radius:12px; padding:6px 6px 9px;
+         box-shadow:0 3px 10px rgba(23,24,27,.06); cursor:pointer; }
+  .c-h img { width:100%; height:106px; object-fit:cover; border-radius:8px; display:block; }
+  .c-h .t { font-size:10px; color:#17181B; margin-top:6px; overflow:hidden; text-overflow:ellipsis;
+            white-space:nowrap; }
+  .c-h .bar { height:3px; background:#E9EBEE; border-radius:2px; margin-top:5px; }
+  .c-h .bar i { display:block; height:3px; background:#D42E24; border-radius:2px; }
+  .c-menu { margin:16px 16px 0; background:#fff; border-radius:14px; overflow:hidden;
+            box-shadow:0 3px 10px rgba(23,24,27,.06); }
+  .c-row { display:flex; align-items:center; gap:11px; padding:14px 15px; font-size:14px; color:#17181B;
+           border-bottom:1px solid #F0F1F4; }
+  .c-row:last-child { border-bottom:none; }
+  .c-row .ti { width:30px; height:30px; border-radius:9px; background:#FDE8E6; color:#D42E24;
+               display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .c-row .bd { flex:1; }
+  .c-row .bd .s { font-size:11px; color:#9CA0A8; margin-top:2px; }
+  .c-row .r { font-size:12px; color:#9CA0A8; }
+  .c-foot { text-align:center; font-size:11px; color:#B4B8BF; padding:24px 0 90px; }
+</style>
+</head>
+<body>
+<div class="masthead">
+  <h1 class="serif">我的页 · <b>三方向</b></h1>
+  <div class="rule"></div>
+  <p>暖白精修 / 沉浸暗场 / 内容卡片——各按自己的设计语言重排「我的」，数据与入口完全一致</p>
+</div>
+<div class="board">
+  <!-- 单方向 3 -->
+<div class="board" style="justify-content:center">
+  <div class="unit">
+    <div class="phone"><div class="cam"></div>
+      <div class="c-scr">
+        <div class="c-top">
+          <div class="row">
+            <div class="c-ava">果</div>
+            <div><div class="nm">常看场的果友</div><div class="st">登录后查看手机片单</div></div>
+            <div class="btn">登录</div>
+          </div>
+        </div>
+        <div class="c-tiles">
+          <div class="c-tile"><div class="v">23<em>部</em></div><div class="l">看过</div></div>
+          <div class="c-tile"><div class="v">12<em>部</em></div><div class="l">收藏</div></div>
+          <div class="c-tile"><div class="v">云<em></em></div><div class="l">云片单</div></div>
+        </div>
+        <div class="c-sec"><h4>接着看</h4><span>全部 ›</span></div>
+        <div class="c-strip">
+          <div class="c-h"><img src="posters/zhuangqiong.jpg"><div class="t">装穷提亲</div><div class="bar"><i style="width:92%"></i></div></div>
+          <div class="c-h"><img src="posters/lingmeng.jpg"><div class="t">灵萌仙缘</div><div class="bar"><i style="width:64%"></i></div></div>
+          <div class="c-h"><img src="posters/heli.jpg"><div class="t">和离后</div><div class="bar"><i style="width:58%"></i></div></div>
+          <div class="c-h"><img src="posters/moshi-big.jpg"><div class="t">末世轮回</div><div class="bar"><i style="width:31%"></i></div></div>
+        </div>
+        <div class="c-menu">
+          <div class="c-row"><div class="ti">✦</div><div class="bd">设置<div class="s">主题样式、播放与更新</div></div><div class="r">内容卡片 ›</div></div>
+          <div class="c-row"><div class="ti">◉</div><div class="bd">账号与隐私<div class="s">登录方式与账号管理</div></div><div class="r">›</div></div>
+          <div class="c-row"><div class="ti">↻</div><div class="bd">检查更新<div class="s">当前版本 0.7.27</div></div><div class="r">›</div></div>
+        </div>
+        <div class="c-foot">本机收藏与观看记录仅保存在这台设备</div>
+      </div>
+    </div>
+    <div class="plate"><span class="no">叁</span><span class="nm">卡片 · 深色台头</span><div class="ds">黑台头 + 浮出磁贴 + 接着看横滑</div></div>
+  </div>
+</div>
+</body>
+</html>
