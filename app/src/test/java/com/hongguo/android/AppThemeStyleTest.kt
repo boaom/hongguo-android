@@ -11,7 +11,7 @@ import org.junit.Test
 class AppThemeStyleTest {
     @Test
     fun persistedKeysAreStableAndUnknownFallsBackToWarm() {
-        assertEquals(listOf("warm", "immersive", "cards"), AppThemeStyle.entries.map { it.key })
+        assertEquals(listOf("warm", "immersive", "cards", "playbill"), AppThemeStyle.entries.map { it.key })
         AppThemeStyle.entries.forEach { assertEquals(it, AppThemeStyle.fromKey(it.key)) }
         assertEquals(AppThemeStyle.WARM, AppThemeStyle.fromKey(null))
         assertEquals(AppThemeStyle.WARM, AppThemeStyle.fromKey("removed-style"))

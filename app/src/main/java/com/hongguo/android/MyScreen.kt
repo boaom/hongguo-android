@@ -87,6 +87,8 @@ internal fun MyScreen(state: HongguoUiState, model: HongguoViewModel,
             CardsMine(state, model, updateState, updateModel, accountName, accountStatus, accountAvatar, onAccount, openSettings)
             return
         }
+        // 红果场刊 keeps the shared 我的 page: its personality lives on 场刊/排片厅/剧目单/内页.
+        AppThemeStyle.PLAYBILL -> Unit
         AppThemeStyle.WARM -> Unit
     }
     // Each destination has one entry: the stat cards open 收藏 / 历史, the account card opens the account page, and the
@@ -290,7 +292,7 @@ internal fun ThemeStyleScreen(state: HongguoUiState, model: HongguoViewModel, on
                             }
                         }
                     }
-                    Text("三套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
+                    Text("四套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
                         color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
@@ -379,6 +381,31 @@ private fun ThemePreview(style: AppThemeStyle, dark: Boolean?) {
                         Box(Modifier.fillMaxWidth().weight(1.4f).clip(RoundedCornerShape(3.dp)).background(PreviewTones[6]))
                     }
                 }
+                PreviewNav(p)
+            }
+            AppThemeStyle.PLAYBILL -> Column(Modifier.fillMaxSize().padding(5.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(1.dp)).background(p.accent))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.ink))
+                Box(Modifier.fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(PreviewTones[3]))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(Modifier.size(width = 22.dp, height = 30.dp).clip(RoundedCornerShape(2.dp)).background(PreviewTones[5]))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Box(Modifier.fillMaxWidth(.9f).height(4.dp).clip(RoundedCornerShape(1.dp)).background(p.ink))
+                        Box(Modifier.fillMaxWidth(.6f).height(3.dp).background(p.line))
+                        Box(Modifier.fillMaxWidth(.75f).height(3.dp).background(p.line))
+                    }
+                }
+                repeat(2) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(when (row) { 0 -> "壹"; else -> "贰" }, color = p.accent, fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold)
+                        Box(Modifier.size(width = 14.dp, height = 19.dp).clip(RoundedCornerShape(1.dp))
+                            .background(PreviewTones[(row + 1) % PreviewTones.size]))
+                        Box(Modifier.weight(1f).height(3.dp).background(p.line))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
                 PreviewNav(p)
             }
         }

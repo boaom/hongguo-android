@@ -70,7 +70,8 @@ class MainActivity : ComponentActivity() {
             val feedDark = layout == AppThemeStyle.IMMERSIVE && state.tab == AppTab.HOME && state.selectedCard == null
             // A detail page's picture sits behind the status bar, so its icons stay light until the picture scrolls away.
             var detailPictureUnderBar by remember(state.selectedCard?.id) { mutableStateOf(true) }
-            val statusBarOverPicture = state.selectedCard != null && layout != AppThemeStyle.WARM && detailPictureUnderBar
+            val statusBarOverPicture = state.selectedCard != null && layout != AppThemeStyle.WARM &&
+                layout != AppThemeStyle.PLAYBILL && detailPictureUnderBar
             // The player owns the system bars while open; the theme re-applies them when it closes.
             HongguoTheme(layout, dark = dark, windowDark = dark || feedDark, statusBarOverPicture = statusBarOverPicture, applyToWindow = !state.playerOpen) {
                 CompositionLocalProvider(LocalDetailPictureUnderBar provides { detailPictureUnderBar = it }) {
@@ -151,6 +152,7 @@ class MainActivity : ComponentActivity() {
                             if (detailState != null) when (layout) {
                                 AppThemeStyle.IMMERSIVE -> ImmersiveDetail(detailState, model, accountModel)
                                 AppThemeStyle.CARDS -> CardsDetail(detailState, model, accountModel)
+                                AppThemeStyle.PLAYBILL -> PlaybillDetail(detailState, model, accountModel)
                                 AppThemeStyle.WARM -> DetailScreen(detailState, model, accountModel)
                             }
                             else if (key.startsWith("detail_")) Unit
@@ -161,6 +163,7 @@ class MainActivity : ComponentActivity() {
                                 AppTab.HOME -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> HongguoTheme(layout, dark = true, applyToWindow = false) { ImmersiveHome(state, model) }
                                     AppThemeStyle.CARDS -> CardsHome(state, model)
+                                    AppThemeStyle.PLAYBILL -> PlaybillHome(state, model)
                                     AppThemeStyle.WARM -> {
                                         BrandHeader()
                                         HomeScreen(state, model)
@@ -169,6 +172,7 @@ class MainActivity : ComponentActivity() {
                                 AppTab.CATEGORY -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveTheater(state, model)
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
+                                    AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)
@@ -290,7 +294,8 @@ private fun drawsUnderStatusBar(key: String, layout: AppThemeStyle): Boolean = w
     AppThemeStyle.IMMERSIVE -> key == "tab_${AppTab.HOME.name}" || key.startsWith("detail_")
     AppThemeStyle.CARDS -> key.startsWith("detail_")
     // 暖白精修's detail page has no picture at the top: its header already runs on into the status bar's color.
-    AppThemeStyle.WARM -> false
+    // 红果场刊 is a paper sheet: it pads below the status bar like every other page.
+    AppThemeStyle.PLAYBILL, AppThemeStyle.WARM -> false
 }
 
 /** False while a page is animating out, so its back handlers and taps stand down. */
