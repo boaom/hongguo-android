@@ -92,6 +92,11 @@ internal fun AppNavigation(selected: AppTab, onSelect: (AppTab) -> Unit, modifie
             AppNavTab(AppTab.CATEGORY, "排片厅", Icons.Outlined.LiveTv, Icons.Filled.LiveTv),
             AppNavTab(AppTab.FAVORITES, "剧目单", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
             AppNavTab(AppTab.MINE, "我的", Icons.Outlined.PersonOutline, Icons.Filled.Person))
+        AppThemeStyle.GAZETTE -> listOf(
+            AppNavTab(AppTab.HOME, "头版", Icons.Outlined.Home, Icons.Filled.Home),
+            AppNavTab(AppTab.CATEGORY, "检索", Icons.Outlined.Explore, Icons.Filled.Explore),
+            AppNavTab(AppTab.FAVORITES, "剪存", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
+            AppNavTab(AppTab.MINE, "我的", Icons.Outlined.PersonOutline, Icons.Filled.Person))
     }
     // 悬浮玻璃 (设置 › 底栏样式): a liquid-glass capsule over the page. The caller passes [backdrop] only when it has
     // laid the page out underneath the capsule; otherwise the themed classic bar below is used.

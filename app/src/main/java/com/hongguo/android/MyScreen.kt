@@ -95,6 +95,8 @@ internal fun MyScreen(state: HongguoUiState, model: HongguoViewModel,
             PlaybillMine(state, model, updateState, updateModel, accountName, accountStatus, accountAvatar, onAccount, openSettings)
             return
         }
+        // 红果小报 shares the 我的 page; its voice lives on 头版/检索/剪存/内页.
+        AppThemeStyle.GAZETTE -> Unit
         AppThemeStyle.WARM -> Unit
     }
     // Each destination has one entry: the stat cards open 收藏 / 历史, the account card opens the account page, and the
@@ -218,7 +220,7 @@ internal fun SystemSettingsScreen(state: HongguoUiState, model: HongguoViewModel
             Text("外观", color = Muted, fontSize = 14.sp)
             Surface(shape = RoundedCornerShape(16.dp), color = CardSurface, modifier = Modifier.padding(top = 12.dp)) {
                 Column {
-                    MyMenuRow("主题样式", "暖白精修、沉浸暗场、内容卡片", "settings_theme",
+                    MyMenuRow("主题样式", "暖白精修、沉浸暗场、内容卡片、红果场刊、红果小报", "settings_theme",
                         trailing = state.themeStyle.label, onClick = onTheme)
                     HorizontalDivider(color = Canvas, modifier = Modifier.padding(horizontal = 18.dp))
                     NavBarStyleSetting(state.navBarStyle, model::setNavBarStyle)
@@ -298,7 +300,7 @@ internal fun ThemeStyleScreen(state: HongguoUiState, model: HongguoViewModel, on
                             }
                         }
                     }
-                    Text("四套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
+                    Text("五套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
                         color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
@@ -408,6 +410,32 @@ private fun ThemePreview(style: AppThemeStyle, dark: Boolean?) {
                             fontWeight = FontWeight.Bold)
                         Box(Modifier.size(width = 14.dp, height = 19.dp).clip(RoundedCornerShape(1.dp))
                             .background(PreviewTones[(row + 1) % PreviewTones.size]))
+                        Box(Modifier.weight(1f).height(3.dp).background(p.line))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                PreviewNav(p)
+            }
+            AppThemeStyle.GAZETTE -> Column(Modifier.fillMaxSize().padding(5.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("红果小报", color = p.ink, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                    Box(Modifier.size(width = 16.dp, height = 2.dp).background(p.accent))
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.ink))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(Modifier.weight(1.2f).height(34.dp).background(PreviewTones[1]))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Box(Modifier.fillMaxWidth(.9f).height(3.dp).background(p.accent))
+                        Box(Modifier.fillMaxWidth(.85f).height(3.dp).background(p.ink))
+                        Box(Modifier.fillMaxWidth(.6f).height(3.dp).background(p.line))
+                    }
+                }
+                repeat(3) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(when (row) { 0 -> "一"; 1 -> "二"; else -> "三" }, color = p.accent,
+                            fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                        Box(Modifier.size(width = 10.dp, height = 13.dp).background(PreviewTones[(row + 3) % PreviewTones.size]))
                         Box(Modifier.weight(1f).height(3.dp).background(p.line))
                     }
                 }

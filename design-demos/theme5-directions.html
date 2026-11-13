@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 套主题 · 三方向初稿</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#20242B; font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;
+         min-height:100vh; padding:44px 40px; color:#E8EAEE; }
+  .masthead { text-align:center; margin-bottom:10px; }
+  .masthead h1 { font-size:26px; letter-spacing:6px; font-weight:800; }
+  .masthead h1 b { color:#FF4D6A; }
+  .masthead p { font-size:12px; color:#8A93A3; margin-top:8px; letter-spacing:1px; }
+  .rule { border-top:2px solid #3A404B; position:relative; max-width:640px; margin:18px auto 8px; }
+  .rule::after { content:''; position:absolute; left:0; right:0; top:3px; border-top:1px solid #3A404B; }
+  .board { display:flex; gap:34px; justify-content:center; align-items:flex-start; margin-top:36px; flex-wrap:wrap; }
+  .unit { width:375px; }
+  .unit .plate { text-align:center; margin:16px 0 12px; }
+  .unit .plate .no { color:#FF4D6A; font-weight:700; margin-right:8px; font-size:15px; }
+  .unit .plate .nm { font-size:17px; font-weight:700; letter-spacing:2px; }
+  .unit .plate .ds { font-size:11px; color:#8A93A3; margin-top:4px; }
+  .phone { width:375px; height:812px; border-radius:32px; background:#000; border:1px solid #33373F;
+           box-shadow:0 24px 60px rgba(0,0,0,.5); overflow:hidden; position:relative; }
+  .scr { height:100%; overflow-y:auto; }
+  .scr::-webkit-scrollbar { display:none; }
+  /* ═══ 壹 · 追更电台 ═══ */
+  .r-scr { background:#0F1115; color:#F2F4F8; }
+  .r-top { padding:52px 20px 12px; display:flex; justify-content:space-between; align-items:center; }
+  .r-top .t { font-size:22px; font-weight:800; }
+  .r-top .t b { color:#FFB300; }
+  .r-top .ic { width:36px; height:36px; border:1px solid #2A2F3A; border-radius:50%; display:flex;
+               align-items:center; justify-content:center; color:#8A93A3; }
+  .r-dial { margin:12px 20px 0; background:linear-gradient(135deg,#1A1E26,#12151B); border:1px solid #2A2F3A;
+            border-radius:16px; padding:16px 18px; position:relative; overflow:hidden; }
+  .r-dial::before { content:''; position:absolute; right:-24px; top:-24px; width:110px; height:110px;
+                    border-radius:50%; border:1.5px dashed rgba(255,179,0,.35); }
+  .r-dial .live { font-size:9px; letter-spacing:3px; color:#FFB300; font-weight:700; }
+  .r-dial .nm { font-size:17px; font-weight:800; margin-top:8px; }
+  .r-dial .m { font-size:11px; color:#8A93A3; margin-top:5px; }
+  .r-dial .eq { position:absolute; right:18px; bottom:16px; display:flex; gap:3px; align-items:flex-end; height:22px; }
+  .r-dial .eq i { width:3px; background:#FFB300; border-radius:2px; }
+  .r-strip { display:flex; gap:10px; overflow-x:auto; padding:14px 20px 4px; scrollbar-width:none; }
+  .r-strip::-webkit-scrollbar { display:none; }
+  .r-pod { flex-shrink:0; width:88px; }
+  .r-pod img { width:88px; height:117px; object-fit:cover; border-radius:10px; display:block; }
+  .r-pod .t { font-size:10px; margin-top:6px; color:#C8CDD6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .r-pod .m { font-size:9px; color:#667081; margin-top:3px; }
+  .r-list { margin:6px 20px 0; }
+  .r-item { display:flex; gap:12px; padding:11px 0; border-bottom:1px solid #1C2027; align-items:center; }
+  .r-item .no { width:26px; font-size:15px; font-weight:800; color:#667081; }
+  .r-item.hot .no { color:#FFB300; }
+  .r-item img { width:44px; height:58px; border-radius:6px; object-fit:cover; }
+  .r-item .bd { flex:1; min-width:0; }
+  .r-item .t { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .r-item .m { font-size:10px; color:#667081; margin-top:4px; }
+  .r-item .sig { flex-shrink:0; font-size:9px; color:#FFB300; border:1px solid rgba(255,179,0,.4);
+                 padding:3px 7px; border-radius:10px; }
+  .r-nav { position:absolute; bottom:0; left:0; right:0; height:74px; background:#0C0E12; border-top:1px solid #1C2027;
+           display:flex; padding:10px 6px 20px; }
+  .r-nav div { flex:1; text-align:center; font-size:9px; color:#667081; padding-top:3px; }
+  .r-nav div.on { color:#FFB300; }
+  .r-nav i { display:block; font-style:normal; font-size:16px; margin-bottom:3px; }
+  /* ═══ 贰 · 剧场之夜 ═══ */
+  .g-scr { background:#0D0B12; color:#F4F0FA; }
+  .g-top { padding:52px 20px 0; text-align:center; }
+  .g-top .cn { font-size:24px; font-weight:800; letter-spacing:8px; }
+  .g-top .en { font-size:9px; letter-spacing:4px; color:#9C6BD6; margin-top:5px; }
+  .g-hero { margin:16px 20px 0; border-radius:16px; overflow:hidden; position:relative; height:200px; }
+  .g-hero img { width:100%; height:100%; object-fit:cover; }
+  .g-hero .veil { position:absolute; inset:0; background:linear-gradient(180deg,transparent 35%, rgba(13,11,18,.94)); }
+  .g-hero .cap { position:absolute; left:16px; right:16px; bottom:14px; }
+  .g-hero .kick { font-size:9px; letter-spacing:3px; color:#C9A4F5; }
+  .g-hero .t { font-size:17px; font-weight:800; margin-top:6px; }
+  .g-hero .m { font-size:10px; color:#B7ABCB; margin-top:4px; }
+  .g-hero .btn { position:absolute; right:14px; bottom:14px; background:#9C6BD6; color:#fff; font-size:12px;
+                 font-weight:700; padding:8px 16px; border-radius:16px; }
+  .g-sect { padding:0 20px; margin-top:22px; }
+  .g-sect h4 { font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .g-sect h4::before, .g-sect h4::after { content:''; flex:1; height:1px;
+      background:linear-gradient(90deg, transparent, rgba(156,107,214,.5)); }
+  .g-sect h4::after { background:linear-gradient(90deg, rgba(156,107,214,.5), transparent); }
+  .g-sect h4 span { color:#C9A4F5; letter-spacing:2px; font-size:12px; }
+  .g-cards { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:12px; }
+  .g-c { position:relative; border-radius:10px; overflow:hidden; }
+  .g-c img { width:100%; height:130px; object-fit:cover; display:block; }
+  .g-c .veil { position:absolute; inset:0; background:linear-gradient(180deg,transparent 45%, rgba(13,11,18,.9)); }
+  .g-c .t { position:absolute; left:8px; right:8px; bottom:7px; font-size:10px; overflow:hidden;
+            text-overflow:ellipsis; white-space:nowrap; }
+  .g-c .n { position:absolute; top:6px; left:8px; font-size:9px; color:#C9A4F5; font-weight:700; }
+  .g-list { margin:14px 20px 0; }
+  .g-item { display:flex; gap:12px; padding:10px 0; align-items:center; border-bottom:1px solid #191521; }
+  .g-item img { width:44px; height:58px; border-radius:6px; object-fit:cover; }
+  .g-item .bd { flex:1; min-width:0; }
+  .g-item .t { font-size:13px; font-weight:600; }
+  .g-item .m { font-size:10px; color:#8A7FA3; margin-top:4px; }
+  .g-item .go { font-size:10px; color:#C9A4F5; border:1px solid rgba(156,107,214,.45); padding:4px 10px; border-radius:12px; }
+  .g-nav { position:absolute; bottom:0; left:0; right:0; height:74px; background:rgba(13,11,18,.94);
+           border-top:1px solid #191521; display:flex; padding:10px 6px 20px; backdrop-filter:blur(8px); }
+  .g-nav div { flex:1; text-align:center; font-size:9px; color:#6E6486; padding-top:3px; }
+  .g-nav div.on { color:#C9A4F5; }
+  .g-nav i { display:block; font-style:normal; font-size:16px; margin-bottom:3px; }
+  /* ═══ 叁 · 红果小报 ═══ */
+  .n-scr { background:#F6F1E7; color:#1E1B17; }
+  .n-top { padding:50px 20px 0; display:flex; justify-content:space-between; align-items:baseline;
+           border-bottom:3px double #1E1B17; margin:0 20px; padding-bottom:10px; }
+  .n-top .t { font-family:'Noto Serif SC',serif; font-size:24px; font-weight:900; letter-spacing:4px; }
+  .n-top .d { font-size:10px; color:#8A7D6C; }
+  .n-cols { display:grid; grid-template-columns:1.25fr 1fr; gap:14px; padding:16px 20px 0; }
+  .n-head { grid-row:span 2; }
+  .n-head img { width:100%; height:240px; object-fit:cover; display:block; border:1px solid #D8CFC0; }
+  .n-head .cap { font-family:'Noto Serif SC',serif; font-size:16px; font-weight:900; line-height:1.5; margin-top:8px; }
+  .n-head .m { font-size:10px; color:#8A7D6C; margin-top:4px; }
+  .n-item { border-bottom:1px solid #E2D8C8; padding:10px 0; }
+  .n-item .k { font-size:9px; color:#C0392B; font-weight:700; letter-spacing:1px; }
+  .n-item .t { font-family:'Noto Serif SC',serif; font-size:14px; font-weight:800; line-height:1.5; margin-top:4px; }
+  .n-item .m { font-size:10px; color:#8A7D6C; margin-top:3px; }
+  .n-brief { padding:14px 20px 0; }
+  .n-brief .k { font-size:9px; color:#C0392B; font-weight:700; letter-spacing:1px; }
+  .n-brief p { font-size:12px; line-height:1.9; color:#57503F; margin-top:6px;
+               font-family:'Noto Serif SC',serif; }
+  .n-rank { margin:16px 20px 0; border:1.5px solid #1E1B17; }
+  .n-rank h5 { font-family:'Noto Serif SC',serif; font-size:13px; font-weight:900; background:#1E1B17; color:#F6F1E7;
+               padding:8px 14px; letter-spacing:2px; }
+  .n-rk { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #E2D8C8; }
+  .n-rk:last-child { border-bottom:none; }
+  .n-rk .no { font-family:'Noto Serif SC',serif; font-weight:900; color:#C0392B; width:18px; font-size:13px; }
+  .n-rk img { width:32px; height:43px; object-fit:cover; border:1px solid #D8CFC0; }
+  .n-rk .bd { flex:1; min-width:0; }
+  .n-rk .t { font-size:12px; font-weight:700; font-family:'Noto Serif SC',serif; overflow:hidden;
+             text-overflow:ellipsis; white-space:nowrap; }
+  .n-rk .m { font-size:9px; color:#8A7D6C; margin-top:2px; }
+  .n-nav { position:absolute; bottom:0; left:0; right:0; height:74px; background:#F1EADC; border-top:1.5px solid #1E1B17;
+           display:flex; padding:10px 6px 20px; }
+  .n-nav div { flex:1; text-align:center; font-size:9px; color:#8A7D6C; padding-top:3px; font-weight:600; }
+  .n-nav div.on { color:#C0392B; }
+  .n-nav i { display:block; font-style:normal; font-size:16px; margin-bottom:3px; }
+</style>
+</head>
+<body>
+<div class="masthead">
+  <h1>第 5 套主题 · <b>三方向</b></h1>
+  <div class="rule"></div>
+  <p>追更电台 / 剧场之夜 / 红果小报 —— 同一份首页数据，三种视觉家族</p>
+</div>
+<div class="board">
+  <!-- 壹 -->
+  <div class="unit">
+    <div class="phone"><div class="r-scr scr">
+      <div class="r-top"><div class="t">追更<b>电台</b></div><div class="ic">⌕</div></div>
+      <div class="r-dial">
+        <div class="live">● ON AIR · 正在热播</div>
+        <div class="nm">装疯嫡女，权倾世子心</div>
+        <div class="m">古言 · 全 87 集 · FM 87.2</div>
+        <div class="eq"><i style="height:8px"></i><i style="height:16px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:18px"></i></div>
+      </div>
+      <div class="r-strip">
+        <div class="r-pod"><img src="posters/zhuangqiong.jpg"><div class="t">装穷提亲</div><div class="m">第 3 集</div></div>
+        <div class="r-pod"><img src="posters/lingmeng.jpg"><div class="t">灵萌仙缘</div><div class="m">第 12 集</div></div>
+        <div class="r-pod"><img src="posters/heli.jpg"><div class="t">和离后</div><div class="m">第 88 集</div></div>
+        <div class="r-pod"><img src="posters/kuayue.jpg"><div class="t">穿越 1998</div><div class="m">已看完</div></div>
+      </div>
+      <div class="r-list">
+        <div class="r-item hot"><div class="no">01</div><img src="posters/zhuangfeng.jpg"><div class="bd"><div class="t">装疯嫡女，权倾世子心</div><div class="m">古言 · 87 集 · 热度 9421</div></div><div class="sig">HOT</div></div>
+        <div class="r-item hot"><div class="no">02</div><img src="posters/yumuying.jpg"><div class="bd"><div class="t">顶级育婴师，竟是小少爷亲妈</div><div class="m">都市 · 77 集 · 热度 8865</div></div><div class="sig">HOT</div></div>
+        <div class="r-item"><div class="no">03</div><img src="posters/duxin.jpg"><div class="bd"><div class="t">读心嫡女捡了个吃瓜夫君</div><div class="m">古言 · 83 集</div></div></div>
+        <div class="r-item"><div class="no">04</div><img src="posters/qinyisheng.jpg"><div class="bd"><div class="t">秦医生，搭个伙</div><div class="m">都市 · 76 集</div></div></div>
+        <div class="r-item"><div class="no">05</div><img src="posters/moshi-big.jpg"><div class="bd"><div class="t">末世轮回：我以尸躯化神明</div><div class="m">科幻 · 310 集</div></div></div>
+      </div>
+      <div style="height:84px"></div>
+      <div class="r-nav"><div class="on"><i>◉</i>电台</div><div><i>⌕</i>搜频</div><div><i>▤</i>歌单</div><div><i>◉</i>我的</div></div>
+    </div></div>
+    <div class="plate"><span class="no">壹</span><span class="nm">追更电台</span><div class="ds">深夜电台隐喻 · 琥珀 dial + 信号格 + 热度清单</div></div>
+  </div>
+  <!-- 贰 -->
+  <div class="unit">
+    <div class="phone"><div class="g-scr scr">
+      <div class="g-top"><div class="cn">剧场之夜</div><div class="en">THEATRE BY NIGHT</div></div>
+      <div class="g-hero">
+        <img src="posters/zhuangfeng.jpg"><div class="veil"></div>
+        <div class="cap"><div class="kick">今晚主演</div><div class="t">装疯嫡女，权倾世子心</div><div class="m">古言 · 全 87 集</div></div>
+        <div class="btn">入场</div>
+      </div>
+      <div class="g-sect"><h4><span>幕 一 · 热映中</span></h4></div>
+      <div style="padding:0 20px">
+        <div class="g-cards">
+          <div class="g-c"><img src="posters/yumuying.jpg"><div class="veil"></div><div class="n">①</div><div class="t">顶级育婴师</div></div>
+          <div class="g-c"><img src="posters/duxin.jpg"><div class="veil"></div><div class="n">②</div><div class="t">读心嫡女</div></div>
+          <div class="g-c"><img src="posters/qinyisheng.jpg"><div class="veil"></div><div class="n">③</div><div class="t">秦医生</div></div>
+        </div>
+      </div>
+      <div class="g-sect"><h4><span>幕 二 · 接着看</span></h4></div>
+      <div class="g-list">
+        <div class="g-item"><img src="posters/zhuangqiong.jpg"><div class="bd"><div class="t">装穷提亲，娶到全家嫌弃的她</div><div class="m">看到第 3 集</div></div><div class="go">续看</div></div>
+        <div class="g-item"><img src="posters/lingmeng.jpg"><div class="bd"><div class="t">灵萌仙缘：葫中藏尽世间粮</div><div class="m">看到第 12 集</div></div><div class="go">续看</div></div>
+      </div>
+      <div style="height:84px"></div>
+      <div class="g-nav"><div class="on"><i>◈</i>大厅</div><div><i>⌕</i>寻剧</div><div><i>▤</i>剧目</div><div><i>◉</i>我的</div></div>
+    </div></div>
+    <div class="plate"><span class="no">贰</span><span class="nm">剧场之夜</span><div class="ds">紫幕天鹅绒 · 幕间分隔线 + 三联剧照 + 号码牌</div></div>
+  </div>
+  <!-- 叁 -->
+  <div class="unit">
+    <div class="phone"><div class="n-scr scr">
+      <div class="n-top"><div class="t">红果小报</div><div class="d">第 1258 期 · 11月13日</div></div>
+      <div class="n-cols">
+        <div class="n-head">
+          <img src="posters/zhuangfeng.jpg">
+          <div class="cap">装疯嫡女权倾世子心，本周热度登顶</div>
+          <div class="m">古言 · 全 87 集 · 连续 5 日榜首</div>
+        </div>
+        <div class="n-item"><div class="k">新剧速递</div><div class="t">顶级育婴师竟是小少爷亲妈</div><div class="m">都市 · 77 集</div></div>
+        <div class="n-item"><div class="k">读者来函</div><div class="t">读心嫡女捡了个吃瓜夫君</div><div class="m">古言 · 83 集</div></div>
+      </div>
+      <div class="n-brief">
+        <div class="k">编 者 按</div>
+        <p>秦医生搭个伙本周收官，都市榜热度不减；末世轮回连更三百一十集，成为最长连载……</p>
+      </div>
+      <div class="n-rank">
+        <h5>本 期 剧 目 榜</h5>
+        <div class="n-rk"><div class="no">一</div><img src="posters/zhuangfeng.jpg"><div class="bd"><div class="t">装疯嫡女，权倾世子心</div><div class="m">87 集 · 热度 9421</div></div></div>
+        <div class="n-rk"><div class="no">二</div><img src="posters/yumuying.jpg"><div class="bd"><div class="t">顶级育婴师，竟是小少爷亲妈</div><div class="m">77 集 · 热度 8865</div></div></div>
+        <div class="n-rk"><div class="no">三</div><img src="posters/duxin.jpg"><div class="bd"><div class="t">读心嫡女捡了个吃瓜夫君</div><div class="m">83 集</div></div></div>
+      </div>
+      <div style="height:84px"></div>
+      <div class="n-nav"><div class="on"><i>▤</i>头版</div><div><i>⌕</i>检索</div><div><i>▦</i>剪存</div><div><i>◉</i>我的</div></div>
+    </div></div>
+    <div class="plate"><span class="no">叁</span><span class="nm">红果小报</span><div class="ds">民国报纸 · 双栏头条 + 编者按 + 黑底剧目榜</div></div>
+  </div>
+</div>
+</body>
+</html>

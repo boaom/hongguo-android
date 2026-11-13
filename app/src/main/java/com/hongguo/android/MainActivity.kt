@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             // A detail page's picture sits behind the status bar, so its icons stay light until the picture scrolls away.
             var detailPictureUnderBar by remember(state.selectedCard?.id) { mutableStateOf(true) }
             val statusBarOverPicture = state.selectedCard != null && layout != AppThemeStyle.WARM &&
-                layout != AppThemeStyle.PLAYBILL && detailPictureUnderBar
+                layout != AppThemeStyle.PLAYBILL && layout != AppThemeStyle.GAZETTE && detailPictureUnderBar
             // The player owns the system bars while open; the theme re-applies them when it closes.
             HongguoTheme(layout, dark = dark, windowDark = dark || feedDark, statusBarOverPicture = statusBarOverPicture, applyToWindow = !state.playerOpen) {
                 CompositionLocalProvider(LocalDetailPictureUnderBar provides { detailPictureUnderBar = it }) {
@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
                                 AppThemeStyle.IMMERSIVE -> ImmersiveDetail(detailState, model, accountModel)
                                 AppThemeStyle.CARDS -> CardsDetail(detailState, model, accountModel)
                                 AppThemeStyle.PLAYBILL -> PlaybillDetail(detailState, model, accountModel)
+                                AppThemeStyle.GAZETTE -> GazetteDetail(detailState, model, accountModel)
                                 AppThemeStyle.WARM -> DetailScreen(detailState, model, accountModel)
                             }
                             else if (key.startsWith("detail_")) Unit
@@ -164,6 +165,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.IMMERSIVE -> HongguoTheme(layout, dark = true, applyToWindow = false) { ImmersiveHome(state, model) }
                                     AppThemeStyle.CARDS -> CardsHome(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillHome(state, model)
+                                    AppThemeStyle.GAZETTE -> GazetteHome(state, model)
                                     AppThemeStyle.WARM -> {
                                         BrandHeader()
                                         HomeScreen(state, model)
@@ -173,6 +175,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveTheater(state, model)
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
+                                    AppThemeStyle.GAZETTE -> GazetteTheater(state, model)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)
@@ -182,6 +185,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveLibrary(tabState, model, accountModel)
                                     AppThemeStyle.CARDS -> CardsLibrary(tabState, model, accountModel)
                                     AppThemeStyle.PLAYBILL -> PlaybillLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.GAZETTE -> GazetteLibrary(tabState, model, accountModel)
                                     AppThemeStyle.WARM -> LibraryScreen(tabState, model, accountModel)
                                 }
                                 AppTab.MINE -> MyScreen(state, model, updateState, updateModel,
@@ -295,8 +299,8 @@ private fun drawsUnderStatusBar(key: String, layout: AppThemeStyle): Boolean = w
     AppThemeStyle.IMMERSIVE -> key == "tab_${AppTab.HOME.name}" || key.startsWith("detail_")
     AppThemeStyle.CARDS -> key.startsWith("detail_")
     // 暖白精修's detail page has no picture at the top: its header already runs on into the status bar's color.
-    // 红果场刊 is a paper sheet: it pads below the status bar like every other page.
-    AppThemeStyle.PLAYBILL, AppThemeStyle.WARM -> false
+    // 红果场刊 is a paper sheet: it pads below the status bar like every other page. 红果小报 likewise.
+    AppThemeStyle.PLAYBILL, AppThemeStyle.GAZETTE, AppThemeStyle.WARM -> false
 }
 
 /** False while a page is animating out, so its back handlers and taps stand down. */

@@ -45,7 +45,8 @@ enum class AppThemeStyle(val key: String, val label: String, val summary: String
     WARM("warm", "暖白精修", "温暖留白的经典布局：推荐位、继续观看横滑和三列封面，适合日常找剧。"),
     IMMERSIVE("immersive", "沉浸暗场", "竖屏沉浸布局：首页上下滑动刷剧，剧场看榜单，追剧页接着看。"),
     CARDS("cards", "内容卡片", "卡片式布局：频道切换、热度榜和双列瀑布流，信息更紧凑。"),
-    PLAYBILL("playbill", "红果场刊", "纸面场刊布局：报头、今晚首演和编号剧目目录，像一份每晚更新的场刊。");
+    PLAYBILL("playbill", "红果场刊", "纸面场刊布局：报头、今晚首演和编号剧目目录，像一份每晚更新的场刊。"),
+    GAZETTE("gazette", "红果小报", "新闻纸版面：双栏头条、新剧速递和黑底剧目榜，像一份每天出版的剧报。");
 
     companion object {
         fun fromKey(key: String?): AppThemeStyle = entries.firstOrNull { it.key == key } ?: WARM
@@ -203,11 +204,33 @@ internal val PlaybillDarkPalette = HongguoPalette(
     noticeBackground = Color(0xFF2C211A), noticeText = Color(0xFFF0B49A),
 )
 
+/** 红果小报: newsprint ground, ink columns and a vermilion kicker. */
+internal val GazettePalette = HongguoPalette(
+    isDark = false,
+    accent = Color(0xFFC0392B), onAccent = Color.White,
+    accentText = Color(0xFFA93A20), accentBorder = Color(0xFFE0B9AC), softAccent = Color(0xFFF7EDE0),
+    ink = Color(0xFF1E1B17), muted = Color(0xFF6E6355),
+    canvas = Color(0xFFF6F1E7), cream = Color(0xFFEFE8D8), line = Color(0xFFE2D8C8), card = Color(0xFFFFFDF6),
+    navMuted = Color(0xFF7A705F), navDivider = Color(0xFFE7DFD2),
+    noticeBackground = Color(0xFFF7EEE2), noticeText = Color(0xFF8A4A2E),
+)
+
+internal val GazetteDarkPalette = HongguoPalette(
+    isDark = true,
+    accent = Color(0xFFC0392B), onAccent = Color.White,
+    accentText = Color(0xFFF08A7A), accentBorder = Color(0xFF5E3A32), softAccent = Color(0xFF2E211C),
+    ink = Color(0xFFEFE8DA), muted = Color(0xFFA89A88),
+    canvas = Color(0xFF191511), cream = Color(0xFF241E17), line = Color(0xFF2E2820), card = Color(0xFF201B15),
+    navMuted = Color(0xFF96897A), navDivider = Color(0xFF241E17),
+    noticeBackground = Color(0xFF2A211A), noticeText = Color(0xFFF0B49A),
+)
+
 internal fun AppThemeStyle.palette(dark: Boolean = this == AppThemeStyle.IMMERSIVE): HongguoPalette = when (this) {
     AppThemeStyle.WARM -> if (dark) WarmDarkPalette else WarmPalette
     AppThemeStyle.IMMERSIVE -> if (dark) ImmersivePalette else ImmersiveLightPalette
     AppThemeStyle.CARDS -> if (dark) CardsDarkPalette else CardsPalette
     AppThemeStyle.PLAYBILL -> if (dark) PlaybillDarkPalette else PlaybillPalette
+    AppThemeStyle.GAZETTE -> if (dark) GazetteDarkPalette else GazettePalette
 }
 
 internal val LocalHongguoPalette = staticCompositionLocalOf { WarmPalette }
