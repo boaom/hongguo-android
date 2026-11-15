@@ -66,14 +66,22 @@ public final class ProgressiveMedia {
          * The already-resolved source, when this failure happened after address resolution. The compatibility
          * path can then reuse it instead of paying a second full resolution (identities, routes, signatures).
          */
-        /** Carries key material and a signed URL, so it stays package-internal and must never be logged. */
-        void carry(String url, String spadeA, boolean encrypt, String definition, long size) {
+        /** Records the resolved source. It carries key material and a signed URL, so never log this value. */
+        public void carry(String url, String spadeA, boolean encrypt, String definition, long size) {
             this.carried = new ProgressiveMedia.CarriedTrack(url, spadeA, encrypt, definition, size);
         }
-        ProgressiveMedia.CarriedTrack carriedTrack() { return carried; }
+        /**
+         * The resolved source, or null when the failure happened before resolution. Callers outside this
+         * package must not write it to logs, crash reports or analytics: it holds key material and a
+         * short-lived signed URL.
+         */
+        public ProgressiveMedia.CarriedTrack carriedTrack() { return carried; }
     }
 
-    /** Transport-agnostic copy of the resolved source, so the fallback does not repeat resolution. */
+    /**
+     * Transport-agnostic copy of the resolved source, so the fallback does not repeat resolution.
+     * Holds key material and a signed URL: read the fields, never log the instance.
+     */
     public static final class CarriedTrack {
         public final String url;
         public final String spadeA;
