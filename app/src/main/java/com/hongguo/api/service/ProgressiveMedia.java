@@ -40,6 +40,12 @@ import javax.net.ssl.SSLException;
 public final class ProgressiveMedia {
     private ProgressiveMedia() {}
     private static final int BLOCK_BYTES = 256 * 1024;
+    /**
+     * One Range request fills up to this many trailing blocks, so sequential playback pays one round trip
+     * per span instead of one per block. It deliberately stops at a block boundary and never replaces the
+     * per-block cache files, so block accounting, cancellation and eviction keep their existing granularity.
+     */
+    static volatile long fetchSpanBytes = 1024 * 1024;
     private static final long MAX_SOURCE_BYTES = 512L * 1024 * 1024;
     private static final long CACHE_LIMIT = MAX_SOURCE_BYTES;
     /** Range reads retried after transient failures (CDN switch, short network drop). Tests shorten the backoff. */
@@ -54,7 +60,30 @@ public final class ProgressiveMedia {
 
     /** A conservative unsupported layout/transport may be retried with Stream.prepare. */
     public static final class UnsupportedException extends IOException {
+        private ProgressiveMedia.CarriedTrack carried;
         public UnsupportedException(String message) { super(message); }
+        /**
+         * The already-resolved source, when this failure happened after address resolution. The compatibility
+         * path can then reuse it instead of paying a second full resolution (identities, routes, signatures).
+         */
+        /** Carries key material and a signed URL, so it stays package-internal and must never be logged. */
+        void carry(String url, String spadeA, boolean encrypt, String definition, long size) {
+            this.carried = new ProgressiveMedia.CarriedTrack(url, spadeA, encrypt, definition, size);
+        }
+        ProgressiveMedia.CarriedTrack carriedTrack() { return carried; }
+    }
+
+    /** Transport-agnostic copy of the resolved source, so the fallback does not repeat resolution. */
+    public static final class CarriedTrack {
+        public final String url;
+        public final String spadeA;
+        public final boolean encrypt;
+        public final String definition;
+        public final long size;
+        CarriedTrack(String url, String spadeA, boolean encrypt, String definition, long size) {
+            this.url = url; this.spadeA = spadeA; this.encrypt = encrypt;
+            this.definition = definition; this.size = size;
+        }
     }
     public interface ConnectionFactory {
         HttpURLConnection open(URI uri) throws IOException;
@@ -92,6 +121,12 @@ public final class ProgressiveMedia {
             emit(progress, "ready", session.downloadedBytes(), session.length());
             return session;
         } catch (Exception | Error failure) {
+            // Hand the resolved source to the compatibility path: resolution already succeeded, so repeating
+            // identities/routes/signatures would only add latency to the slowest case.
+            if (failure instanceof UnsupportedException) {
+                ((UnsupportedException) failure).carry(track.url, track.spadeA, track.encrypt,
+                        track.definition, track.size);
+            }
             session.close();
             throw failure;
         }
@@ -112,6 +147,8 @@ public final class ProgressiveMedia {
         private final Reader defaultReader;
         private volatile boolean closed;
         private volatile boolean opening = true;
+        /** Highest block index the last coalesced request covered; -2 means "no request yet". */
+        private long lastRequestedBlock = -2;
         private long length = -1, downloadedBytes;
         private long moovStart;
         private byte[] clearMoov;
@@ -304,42 +341,95 @@ public final class ProgressiveMedia {
             try {
                 while (!(locked = fetchLock.tryLock(100, TimeUnit.MILLISECONDS))) reader.check();
                 reader.check();
-                synchronized (CACHE_GUARD) {
-                    CacheBlock cached = blocks.get(number);
-                    if (cached != null) {
-                        try {
-                            byte[] bytes = Files.readAllBytes(cached.path);
-                            if (bytes.length == cached.size && Arrays.equals(digest(bytes), cached.hash)) {
-                                CACHE.get(cached.path); return bytes;
-                            }
-                        } catch (IOException ignored) { }
-                        removeCache(cached);
-                    }
-                }
+                byte[] hit = cachedBlock(reader, number);
+                if (hit != null) return hit;
                 long from = number * BLOCK_BYTES;
-                int count = (int) Math.min(BLOCK_BYTES, length - from);
-                byte[] bytes = fetchRetrying(reader, from, count);
+                // Coalesce a sequential run of missing blocks into one Range request, then store every block
+                // separately so accounting, cancellation and eviction keep working per block.
+                int span = spanBlocks(number);
+                byte[] bytes = fetchRetrying(reader, from, (int) Math.min((long) span * BLOCK_BYTES, length - from));
+                lastRequestedBlock = number + span - 1;
                 reader.check();
-                Path destination = dir.resolve(number + ".range");
-                Path temporary = Files.createTempFile(dir, "range-", ".part");
-                try {
-                    Files.write(temporary, bytes);
-                    synchronized (CACHE_GUARD) {
-                        reader.check();
-                        while (cacheBytes + bytes.length > CACHE_LIMIT && !CACHE.isEmpty()) removeCache(CACHE.values().iterator().next());
-                        Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                        CacheBlock entry = new CacheBlock(this, number, destination, bytes.length, digest(bytes));
-                        blocks.put(number, entry); CACHE.put(destination, entry); cacheBytes += bytes.length;
-                        if (!downloaded.get((int) number)) {
-                            downloaded.set((int) number); downloadedBytes += bytes.length;
-                        }
+                if (span == 1) {
+                    emit(progress, "buffering", downloadedBytes(), length);
+                    return commit(reader, number, bytes);
+                }
+                byte[] first = null;
+                IOException failed = null;
+                for (int index = 0; index < span; index++) {
+                    long target = number + index;
+                    int offset = index * BLOCK_BYTES;
+                    int size = (int) Math.min(BLOCK_BYTES, length - (target * BLOCK_BYTES));
+                    if (offset + size > bytes.length) break;
+                    byte[] piece = Arrays.copyOfRange(bytes, offset, offset + size);
+                    if (index == 0) {
+                        commit(reader, target, piece);
+                        first = piece;
+                        continue;
                     }
-                } finally { Files.deleteIfExists(temporary); }
+                    // The requested block is already durable; a failure while filling look-ahead blocks must
+                    // never fail this read, so those are committed on a best-effort basis.
+                    try { commit(reader, target, piece); }
+                    catch (InterruptedIOException cancelled) { throw cancelled; }
+                    catch (IOException lookahead) { failed = lookahead; break; }
+                }
+                if (first == null) throw failed != null ? failed : new IOException("媒体分段长度异常");
                 emit(progress, "buffering", downloadedBytes(), length);
-                return bytes;
+                return first;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt(); throw cancelled();
             } finally { if (locked) fetchLock.unlock(); }
+        }
+
+        /** Cache hit path shared by the plain block read and the post-span lookup. Caller holds fetchLock. */
+        private byte[] cachedBlock(Reader reader, long number) {
+            synchronized (CACHE_GUARD) {
+                CacheBlock cached = blocks.get(number);
+                if (cached == null) return null;
+                try {
+                    byte[] bytes = Files.readAllBytes(cached.path);
+                    if (bytes.length == cached.size && digestMatches(bytes, cached.hash)) {
+                        CACHE.get(cached.path); return bytes;
+                    }
+                } catch (IOException ignored) { }
+                removeCache(cached);
+                return null;
+            }
+        }
+
+        /**
+         * How many blocks one request should cover. The span only grows when the miss continues exactly where
+         * the previous request ended, so sequential playback fetches one span per second instead of four
+         * requests per second, while a seek still touches exactly the one block it asked for and never
+         * pre-caches blocks the caller has not reached yet.
+         */
+        private int spanBlocks(long number) {
+            if (number != lastRequestedBlock + 1) return 1;
+            long span = Math.max(BLOCK_BYTES, fetchSpanBytes) / BLOCK_BYTES;
+            long total = (length + BLOCK_BYTES - 1) / BLOCK_BYTES;
+            return (int) Math.max(1, Math.min(span, total - number));
+        }
+
+        /** Stores one fetched block. The caller holds fetchLock; the byte array is owned by this call. */
+        private byte[] commit(Reader reader, long number, byte[] bytes) throws IOException {
+            Path destination = dir.resolve(number + ".range");
+            Path temporary = Files.createTempFile(dir, "range-", ".part");
+            try {
+                Files.write(temporary, bytes);
+                synchronized (CACHE_GUARD) {
+                    reader.check();
+                    CacheBlock existing = blocks.get(number);
+                    if (existing != null) { removeCache(existing); }
+                    while (cacheBytes + bytes.length > CACHE_LIMIT && !CACHE.isEmpty()) removeCache(CACHE.values().iterator().next());
+                    Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                    CacheBlock entry = new CacheBlock(this, number, destination, bytes.length, digest(bytes));
+                    blocks.put(number, entry); CACHE.put(destination, entry); cacheBytes += bytes.length;
+                    if (!downloaded.get((int) number)) {
+                        downloaded.set((int) number); downloadedBytes += bytes.length;
+                    }
+                }
+            } finally { Files.deleteIfExists(temporary); }
+            return bytes;
         }
 
         /**
@@ -352,6 +442,17 @@ public final class ProgressiveMedia {
             for (int attempt = 1; ; attempt++) {
                 IOException failure;
                 try { return fetch(reader, from, count, false); }
+                // A layout/transport verdict is deterministic: a node that answers 200, or a source whose
+                // declared length changed, answers the same way again. Retrying it only holds the session
+                // fetch lock through the whole backoff before the same fallback happens anyway.
+                catch (UnsupportedException verdict) {
+                    // The verdict can be node-specific: the media host load-balances a range onto other CDNs,
+                    // and those nodes differ in Range support and reported length. One free re-probe keeps the
+                    // millisecond fast-fail for a node that really rejects ranges while still recovering from
+                    // a node that answers badly only once.
+                    if (attempt < 2) { reader.check(); continue; }
+                    throw verdict;
+                }
                 catch (SocketTimeoutException timeout) { failure = timeout; }   // an InterruptedIOException, but not a cancel
                 catch (InterruptedIOException cancelled) { throw cancelled; }
                 catch (IOException other) { failure = other; }
@@ -514,6 +615,11 @@ public final class ProgressiveMedia {
     private static byte[] digest(byte[] bytes) {
         try { return MessageDigest.getInstance("SHA-256").digest(bytes); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
+    }
+    /** Digest comparison for a cache hit. A missing algorithm fails closed: an unverified block is not reusable. */
+    private static boolean digestMatches(byte[] bytes, byte[] expected) {
+        try { return MessageDigest.isEqual(MessageDigest.getInstance("SHA-256").digest(bytes), expected); }
+        catch (java.security.NoSuchAlgorithmException unavailable) { return false; }
     }
     private static URI checkedUri(String raw) throws IOException {
         try {

@@ -10,6 +10,7 @@ import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +43,10 @@ public final class Stream {
     private static final long CACHE_BYTES = 512L * 1024 * 1024;
     private static final long MAX_MEDIA_BYTES = CACHE_BYTES;
     private static final long MAX_MOOV_BYTES = 32L * 1024 * 1024;
+    /** Whole-file download attempts; each one after the first resumes the partial file with a Range request. */
+    private static final int DOWNLOAD_ATTEMPTS = 3;
+    /** Package-private so a host probe can shorten it; production keeps the network value. */
+    static volatile long DOWNLOAD_READ_TIMEOUT_MILLIS = 10000;
     private static final Object CACHE_GUARD = new Object();
     private static final Map<String, Integer> PINS = new HashMap<>();
     private static final Set<String> INITIALIZED_DIRS = new HashSet<>();
@@ -120,6 +125,25 @@ public final class Stream {
 
     public static String ensureDecrypted(String vid, String quality) throws Exception {
         return prepare(vid, quality, null);
+    }
+
+    /**
+     * Compatibility path when the caller already resolved the source (see
+     * {@link ProgressiveMedia.UnsupportedException#carriedTrack()}). Resolving again would repeat the
+     * identity/route/signature work that just succeeded, so it is skipped here.
+     */
+    public static String prepareWithTrack(String vid, String quality, String url, String spadeA,
+                                          boolean encrypt, String definition, long size,
+                                          Progress progress) throws Exception {
+        Path out = outputPath(vid, quality);
+        checkCancelled(progress);
+        VideoTrack track = new VideoTrack();
+        track.url = url;
+        track.spadeA = spadeA;
+        track.encrypt = encrypt;
+        track.definition = definition;
+        track.size = size;
+        return prepareTrack(track, out, progress);
     }
 
     /**
@@ -221,13 +245,11 @@ public final class Stream {
         }
     }
 
-    /** True streaming download, 64KB buffer. Interrupted/cancelled reads leave no cache entry. */
-    public static long download(String url, Path dest) throws IOException {
-        return download(url, dest, null);
-    }
-
-    private static long download(String url, Path dest, Progress progress) throws IOException {
-        checkCancelled(progress);
+    /**
+     * True streaming download, 64KB buffer. A stalled transfer keeps the partial file and the next attempt
+     * resumes it with a Range request, so one network hiccup no longer costs the whole episode.
+     */
+    static long download(String url, Path dest, Progress progress) throws IOException {
         URI uri;
         try { uri = URI.create(url); } catch (IllegalArgumentException e) {
             throw new IOException("媒体地址无效");
@@ -235,23 +257,79 @@ public final class Stream {
         if (!"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
             throw new IOException("媒体地址协议无效");
         }
+        IOException failure = null;
+        for (int attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+            checkCancelled(progress);
+            long size = partialSize(dest);
+            if (attempt > 1) update(progress, "downloading", size, -1);
+            Attempt result = downloadAttempt(uri, dest, size, progress);
+            if (result == null) return Files.size(dest);
+            failure = result.failure;
+            // Only a stalled transfer is worth resuming: the bytes already written are valid and the next
+            // attempt continues from them. Anything else (a short body, a rejected status) is the node
+            // disagreeing about the resource, and asking it again just repeats the failure.
+            boolean resumable = result.progress && result.failure instanceof SocketTimeoutException;
+            if (!resumable || attempt == DOWNLOAD_ATTEMPTS) break;
+            sleepBeforeRetry(progress, attempt);
+        }
+        deleteQuietly(dest);
+        throw failure != null ? failure : new IOException("媒体下载失败");
+    }
+
+    /** One download attempt: null on success, otherwise the failure plus whether the attempt made progress. */
+    private static final class Attempt {
+        final IOException failure;
+        final boolean progress;
+        Attempt(IOException failure, boolean progress) { this.failure = failure; this.progress = progress; }
+    }
+
+    private static Attempt attempted(IOException failure, boolean progress) { return new Attempt(failure, progress); }
+
+    private static long partialSize(Path dest) {
+        try { return Files.exists(dest) ? Files.size(dest) : 0; } catch (IOException ignored) { return 0; }
+    }
+
+    private static void sleepBeforeRetry(Progress progress, int attempt) throws IOException {
+        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500L * attempt);
+        while (System.nanoTime() < until) {
+            checkCancelled(progress);
+            try { Thread.sleep(Math.max(1, Math.min(50, TimeUnit.NANOSECONDS.toMillis(until - System.nanoTime())))); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw cancelled(); }
+        }
+    }
+
+    /** One download attempt: null on success, otherwise the failure plus whether the attempt made progress. */
+    private static Attempt downloadAttempt(URI uri, Path dest, long already, Progress progress) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
         connection.setInstanceFollowRedirects(true);
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(5000);
+        connection.setConnectTimeout(10000);
+        // Every retry pays this timeout again, so an over-long value turns one stalled connection into a
+        // multi-attempt stall; the original 5 s traded that for a higher rate of restarts.
+        connection.setReadTimeout((int) DOWNLOAD_READ_TIMEOUT_MILLIS);
         connection.setRequestProperty("User-Agent", "Mozilla/5.0");
         connection.setRequestProperty("Accept-Encoding", "identity");
-        boolean complete = false;
+        if (already > 0) connection.setRequestProperty("Range", "bytes=" + already + "-");
+        long written = 0;
         try {
-            int status = connection.getResponseCode();
+            int status;
+            try { status = connection.getResponseCode(); }
+            catch (IOException refused) { return attempted(refused, false); }
             checkCancelled(progress);
-            if (status != 200) throw new IOException("媒体下载失败（HTTP " + status + "）");
-            long total = connection.getContentLengthLong();
-            if (total > MAX_MEDIA_BYTES) throw new IOException("本集文件超出缓存容量限制");
-            update(progress, "downloading", 0, total > 0 ? total : -1);
-            long got = 0;
+            if (status != 200 && status != 206) {
+                return attempted(new IOException("媒体下载失败（HTTP " + status + "）"), false);
+            }
+            // A 206 that does not start where we asked would corrupt the file, so it is not appending.
+            boolean appending = status == 206 && already > 0;
+            long chunk = connection.getContentLengthLong();
+            long total = appending ? already + chunk : chunk;
+            if (total > MAX_MEDIA_BYTES) return attempted(new IOException("本集文件超出缓存容量限制"), false);
+            long got = appending ? already : 0;
             long lastProgress = 0;
-            try (InputStream in = connection.getInputStream(); OutputStream target = Files.newOutputStream(dest)) {
+            try (InputStream in = connection.getInputStream();
+                 OutputStream target = Files.newOutputStream(dest, appending
+                         ? new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.APPEND}
+                         : new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                                 java.nio.file.StandardOpenOption.CREATE})) {
                 byte[] buffer = new byte[65536];
                 for (;;) {
                     checkCancelled(progress);
@@ -260,23 +338,28 @@ public final class Stream {
                     if (n == 0) continue;
                     checkCancelled(progress);
                     got += n;
-                    if (got > MAX_MEDIA_BYTES) throw new IOException("本集文件超出缓存容量限制");
+                    if (got > MAX_MEDIA_BYTES) {
+                        return attempted(new IOException("本集文件超出缓存容量限制"), written > 0);
+                    }
                     target.write(buffer, 0, n);
+                    written += n;
                     long now = System.nanoTime();
                     if (now - lastProgress > 100_000_000L) {
                         update(progress, "downloading", got, total > 0 ? total : -1);
                         lastProgress = now;
                     }
                 }
+            } catch (IOException transfer) {
+                return attempted(transfer, written > 0);
             }
             checkCancelled(progress);
-            if (got == 0 || (total >= 0 && got != total)) throw new IOException("媒体下载不完整，请重试");
+            if (got == 0 || (total >= 0 && got != total) || got != Files.size(dest)) {
+                return attempted(new IOException("媒体下载不完整，请重试"), written > 0);
+            }
             update(progress, "downloading", got, total > 0 ? total : got);
-            complete = true;
-            return got;
+            return null;
         } finally {
             connection.disconnect();
-            if (!complete) deleteQuietly(dest);
         }
     }
 

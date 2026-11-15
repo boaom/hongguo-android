@@ -156,10 +156,19 @@ class DramaRepository {
                 catch (unsupported: ProgressiveMedia.UnsupportedException) {
                     if (!allowFallback) throw unsupported
                     progress("compatibility", 0, -1)
-                    val path = Stream.prepare(episode.id, "", object : Stream.Progress {
+                    val fallback = object : Stream.Progress {
                         override fun update(stage: String, done: Long, total: Long) { if (context.isActive) progress(stage, done, total) }
                         override fun isCancelled(): Boolean = !context.isActive || Thread.currentThread().isInterrupted
-                    })
+                    }
+                    // Resolution already succeeded before the transport was rejected, so reuse it instead of
+                    // resolving again (identities, routes, signatures) on the slowest path.
+                    val carried = unsupported.carriedTrack()
+                    val path = if (carried != null) {
+                        Stream.prepareWithTrack(episode.id, "", carried.url, carried.spadeA, carried.encrypt,
+                            carried.definition, carried.size, fallback)
+                    } else {
+                        Stream.prepare(episode.id, "", fallback)
+                    }
                     PreparedVideo(episode.id, path)
                 }
             }

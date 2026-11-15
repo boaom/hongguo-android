@@ -129,6 +129,49 @@ public class ProgressiveMediaTest {
         try { open(origin, false, progress); fail(); } catch (InterruptedIOException expected) { }
     }
 
+    @Test public void sequentialReadsCoalesceIntoSpansButASeekStillFetchesOneBlock() throws Exception {
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin origin = new Origin(media);
+        session = open(origin, false, null);
+        int afterOpen = origin.requests.get();
+        ProgressiveMedia.Reader reader = session.newReader();
+        try {
+            // A seek decides its own span: it asked for one block and must not pre-cache the neighbours.
+            read(reader, 1024 * 1024, 16);
+            int afterSeek = origin.requests.get();
+            assertEquals("a seek fetches exactly the block it asked for", afterOpen + 1, afterSeek);
+            assertNull("a seek must not pre-cache the following block", blockPath(5));
+            // Reading onward is sequential, so a whole span arrives in one request and fills every block in it.
+            read(reader, 1280 * 1024, 16);
+            int afterSpan = origin.requests.get();
+            assertEquals("the following blocks arrive in one request", afterSeek + 1, afterSpan);
+            assertNotNull("the span must cover the requested block", blockPath(5));
+            assertNotNull("the span must fill its trailing blocks", blockPath(6));
+        } finally { reader.close(); }
+    }
+
+    @Test public void coalescedSpanNeverReadsPastTheEndOfTheSource() throws Exception {
+        // Requesting the whole span at the tail would overrun the declared length, so the last span is clamped.
+        byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
+        Origin origin = new Origin(media);
+        session = open(origin, false, null);
+        ProgressiveMedia.Reader reader = session.newReader();
+        try {
+            long lastBlockStart = (media.length - 1) / (256 * 1024) * (256 * 1024);
+            assertArrayEquals(Arrays.copyOfRange(media, (int) lastBlockStart, (int) lastBlockStart + 16),
+                    read(reader, lastBlockStart, 16));
+            assertArrayEquals(Arrays.copyOfRange(media, media.length - 16, media.length),
+                    read(reader, media.length - 16, 16));
+            assertNotNull("the last block is covered", blockPath((media.length - 1) / (256 * 1024)));
+        } finally { reader.close(); }
+    }
+
+    private Path blockPath(long number) {
+        try (java.util.stream.Stream<Path> paths = Files.walk(root)) {
+            return paths.filter(p -> p.getFileName().toString().equals(number + ".range")).findFirst().orElse(null);
+        } catch (IOException failure) { return null; }
+    }
+
     @Test public void rejects200WrongRangeTruncationAndChangedRemoteVersion() throws Exception {
         byte[] media = clear(expandMdat(fixture(false), 2 * 1024 * 1024));
         Origin origin = new Origin(media); origin.status = 200;
