@@ -161,13 +161,18 @@ class DramaRepository {
                         override fun isCancelled(): Boolean = !context.isActive || Thread.currentThread().isInterrupted
                     }
                     // Resolution already succeeded before the transport was rejected, so reuse it instead of
-                    // resolving again (identities, routes, signatures) on the slowest path.
+                    // resolving again (identities, routes, signatures) on the slowest path. The Java fields are
+                    // platform types, so bind them to non-null locals before passing them on.
                     val carried = unsupported.carriedTrack()
-                    val path = if (carried != null) {
-                        Stream.prepareWithTrack(episode.id, "", carried.url, carried.spadeA, carried.encrypt,
-                            carried.definition, carried.size, fallback)
-                    } else {
+                    val path = if (carried == null) {
                         Stream.prepare(episode.id, "", fallback)
+                    } else {
+                        val url: String = carried.url
+                        val spadeA: String = carried.spadeA
+                        val definition: String = carried.definition
+                        val encrypt: Boolean = carried.encrypt
+                        val size: Long = carried.size
+                        Stream.prepareWithTrack(episode.id, "", url, spadeA, encrypt, definition, size, fallback)
                     }
                     PreparedVideo(episode.id, path)
                 }
