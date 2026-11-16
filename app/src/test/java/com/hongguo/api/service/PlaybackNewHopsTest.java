@@ -236,6 +236,10 @@ public class PlaybackNewHopsTest {
         com.hongguo.api.service.Stream.VideoTrack track = new com.hongguo.api.service.Stream.VideoTrack();
         track.url = "https://v1.qznovelvod.com/new-hops-keep-identity.mp4";
 
+        // 注意：测试缝 setSinglePlaybackForTest 会顺带清空 PLAYBACK_IDENTITY（AppSource.java:386），
+        // 因此它必须在第 1 次 fetch 之前调用，否则会清掉刚写入的缓存身份、让本用例失真。
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+
         // 第 1 次：v5 成功 → 写入缓存身份（注册 1 次）
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
         assertSame(track, AppSource.fetch("1", "auto"));
@@ -247,7 +251,6 @@ public class PlaybackNewHopsTest {
         AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
-        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
         assertSame(track, AppSource.fetch("2", "auto"));
 
         // 第 3 次：v5 再成功；若上一步清过身份，这里会再注册
