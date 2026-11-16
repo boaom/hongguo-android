@@ -134,7 +134,6 @@ public final class AppSource {
         Exception failure = null;
         Exception modelFailure = null;
         IOException renewal = null;
-HEAD
         // 2026-11-16 上游再变：v3 Medusa 形态一律回 200 + 空正文，换身份无效。权威解是
         // N3urda/hongguoTV 18c37c2 的 v5 形态（v04.10.03，端点 .../multi_video_model/player/v1，
         // gzip 体 + 票号选分支 0 的 hashF13/AesV3/medusa）。它排最前，空响应再落到下面 11-13 的两跳。

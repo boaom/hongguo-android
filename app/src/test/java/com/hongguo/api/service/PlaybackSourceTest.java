@@ -59,11 +59,8 @@ public class PlaybackSourceTest {
         // 默认让 video_tab 不可用，覆盖旧接口回退路径；需要新接口的用例自行注入。
         AppSource.setPlaybackTabForTest((vid, identity) -> null);
         // No single model in legacy-route fixtures; empty-response recovery has its own tests.
-HEAD
-        // 默认让单集接口回空，覆盖旧路径；需要单集接口的用例自行注入。
-        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
-            throw new AppSource.EmptyPlaybackResponseException();
-        });
+        // 单集桩返回 null（上游语义）：不触发 5 次重试与换身份，旧路径用例保持原节奏。
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> null);
         // 参考实现形态的两跳同样默认回空，测试不打真网络；需要它的用例自行注入。
         AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
             throw new AppSource.EmptyPlaybackResponseException();
