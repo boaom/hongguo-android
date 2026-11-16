@@ -224,7 +224,7 @@ public class PlaybackNewHopsTest {
         } catch (AppSource.PlaybackRejectedException expected) {
         }
         assertEquals(1, requests.get());      // 只有那一次被拒的 GET，没有第二次 POST
-        assertEquals(1, registrations.get()); // 只有入口那一次注册，没有再换身份
+        assertEquals(2, registrations.get()); // 入口 1 次 + tab 跳内 1 次；关键是没出现第三次（POST 的换身份）
     }
 
     /** 预算语义：只约束「是否开始新的工作」，已发出请求的成果不因预算耗尽被丢弃。 */

@@ -145,9 +145,12 @@ public final class AppSource {
         } catch (InterruptedIOException e) {
             throw e;
         } catch (EmptyPlaybackResponseException e) {
-            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径；同时清掉已失效的缓存身份，
-            // 避免失效身份跨 fetch 继续被复用（与单集路径的 compareAndSet(identity, null) 一致）。
-            PLAYBACK_IDENTITY.compareAndSet(identity, null);
+            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径。
+            //
+            // 这里刻意不清缓存身份：v5 空响应是上游当前常态（换身份无效），清掉会让每次 fetch 都
+            // 重新注册，直接废掉「复用成功的匿名身份」。清理只发生在「确实用该身份试过并失败」的
+            // 单集路径与旧路由，且都是 CAS——某一跳的失败不得驱逐别的请求已成功的身份
+            // （PlaybackRecoveryTest.staleFailureCannotEvictAnotherRequestsSuccessfulIdentity 钉住这条）。
         } catch (PlaybackRejectedException e) {
             // 业务风控拒绝（1003/101144/110001/110002）：换端点换身份都解决不了，立刻终止整条链，
             // 否则 11-13 两跳与旧路径只会继续用新身份撞风控。
