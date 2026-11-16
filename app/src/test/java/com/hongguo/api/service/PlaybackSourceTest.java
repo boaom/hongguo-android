@@ -66,6 +66,10 @@ public class PlaybackSourceTest {
         AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
+        // v5 形态（2026-11-16）默认也回空，避免单测打真网络；需要它的用例自行注入。
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
     }
 
     @After public void restore() {
@@ -75,6 +79,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackTabForTest(null);
         AppSource.setSinglePlaybackForTest(null);
         AppSource.setPlayerSignaturePlaybackForTest(null);
+        AppSource.setMobileV5PlaybackForTest(null);
     }
 
     // ==================== ttEncrypt 注册请求体 ====================

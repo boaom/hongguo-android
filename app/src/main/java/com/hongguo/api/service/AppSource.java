@@ -4,6 +4,7 @@ import com.hongguo.api.core.PlaybackSignature;
 import com.hongguo.api.core.PlayerSign;
 import com.hongguo.api.core.PureSign;
 import com.hongguo.api.core.Spade;
+import com.hongguo.api.core.V5Sign;
 import com.hongguo.api.util.Crypto;
 import com.hongguo.api.util.Http;
 import com.hongguo.api.util.Json;
@@ -127,6 +128,22 @@ public final class AppSource {
         Exception failure = null;
         Exception modelFailure = null;
         IOException renewal = null;
+        // 2026-11-16 上游再变：v3 Medusa 形态一律回 200 + 空正文，换身份无效。权威解是
+        // N3urda/hongguoTV 18c37c2 的 v5 形态（v04.10.03，端点 .../multi_video_model/player/v1，
+        // gzip 体 + 票号选分支 0 的 hashF13/AesV3/medusa）。它排最前，空响应再落到下面 11-13 的两跳。
+        try {
+            return mobileV5Playback.get(vid, quality, identity);
+        } catch (InterruptedIOException e) {
+            throw e;
+        } catch (EmptyPlaybackResponseException e) {
+            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径。
+        } catch (PlaybackHttpException | IOException e) {
+            if (Thread.currentThread().isInterrupted()) throw e;
+            failure = e;
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) throw e;
+            modelFailure = e;
+        }
         // 2026-11-13 上游把播放形态又推进了一版：先按参考实现（hongguo-web f662f0b/1b00f06）的
         // video_tab 签名 GET（73932 / 7.3.9.32）打，空响应再换新身份用旧 POST（gzip 体，74332 / 7.4.3.32）；
         // 两跳都用 551 真签名（PlaybackSignature）。都空才退到下面的旧路径。
@@ -256,6 +273,21 @@ public final class AppSource {
 
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         singlePlayback = playback == null ? AppSource::fetchSingle : playback;
+    }
+
+    /**
+     * v5 播放形态（2026-11-16 上游要求）；JVM 测试注入。
+     * 生产实现见 {@link #fetchMobileV5}，默认在抓错时抛空响应，交给后面的 11-13 两跳与旧路径。
+     */
+    interface MobileV5Playback {
+        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity)
+                throws Exception;
+    }
+
+    private static MobileV5Playback mobileV5Playback = AppSource::fetchMobileV5;
+
+    static void setMobileV5PlaybackForTest(MobileV5Playback playback) {
+        mobileV5Playback = playback == null ? AppSource::fetchMobileV5 : playback;
     }
 
     /** 参考实现当前形态的取流（video_tab 签名 GET → 旧 POST gzip 体）；JVM 测试注入。 */
@@ -909,6 +941,144 @@ public final class AppSource {
         Http.Resp res = Http.send(req);
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         return parsePlaybackResponse(res.text());
+    }
+
+    // ==================== v5 播放形态（2026-11-16，移植自 N3urda/hongguoTV 18c37c2） ====================
+
+    /**
+     * v5 播放端点（与 v3 的 {@code multi_video_model/v1} 不同：多一层 {@code /player/}，且主机是 a 域名）。
+     *
+     * <p>上游 {@code MobilePlayback.ladder} 用的就是这一条；query 只有 13 个字段（不再带 ts、不再带
+     * 全套 deviceBase），因为 v5 的票号选择靠 {@code _rticket} 抖动而不是 {@code ts}。
+     */
+    static final String MOBILE_V5_API =
+            "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1";
+
+    /** v5 的播放器版本（上游 74332 / 7.4.3.32）。 */
+    private static final String MOBILE_V5_VERSION_CODE = "74332";
+    private static final String MOBILE_V5_VERSION_NAME = "7.4.3.32";
+
+    /** v5 播放器 UA（上游 MobilePlayback 的字面量，与 v3 的 PLAYBACK_UA 不同）。 */
+    static final String MOBILE_V5_UA =
+            "com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; "
+            + "Build/V417IR;tt-ok/3.12.13.20)";
+
+    /** v5 的 13 个 query 字段，顺序照抄上游 {@code linkedMapOf}（query 按插入序编码）。 */
+    static Map<String, String> mobileV5Query(PlaybackDevice.Identity identity, long ticket) {
+        Map<String, String> q = new LinkedHashMap<>();
+        q.put("aid", "8662");
+        q.put("app_name", "novelread");
+        q.put("version_code", MOBILE_V5_VERSION_CODE);
+        q.put("version_name", MOBILE_V5_VERSION_NAME);
+        q.put("channel", "vivo_8662_64");
+        q.put("device_platform", "android");
+        q.put("device_type", "PGT-AN10");
+        q.put("os_version", "12");
+        q.put("update_version_code", MOBILE_V5_VERSION_CODE);
+        q.put("iid", identity.iid);
+        q.put("cdid", identity.cdid);
+        q.put("device_id", identity.deviceId);
+        q.put("_rticket", String.valueOf(ticket));
+        return q;
+    }
+
+    /** v5 请求体（上游 payload 的逐字段复制；{@code dr_scene} 必须在末尾）。 */
+    static byte[] mobileV5Body(String vid) {
+        Map<String, Object> biz = Json.obj();
+        biz.put("detail_page_version", 0);
+        biz.put("device_level", 3);
+        biz.put("disable_digg_stat", false);
+        biz.put("disable_video_relate_book", false);
+        biz.put("need_all_video_definition", true);
+        biz.put("need_mp4_align", false);
+        biz.put("use_os_player", false);
+        biz.put("use_server_dns", false);
+        biz.put("video_platform", 1024);
+        Map<String, Object> mixed = Json.obj();
+        List<Object> ids = Json.arr();
+        ids.add(vid);
+        mixed.put("1004", ids);
+        Map<String, Object> out = Json.obj();
+        out.put("biz_param", biz);
+        out.put("mixed_video_id_map", mixed);
+        out.put("dr_scene", "player");
+        return Json.stringify(out).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** v5 的注册身份画像（processNonce / processStarted 是进程级常量）。 */
+    private static V5Sign.Identity mobileV5Identity(PlaybackDevice.Identity identity) {
+        return new V5Sign.Identity(identity.deviceId, MOBILE_V5_VERSION_NAME, "vivo_8662_64",
+                "12", "PGT-AN10", V5Sign.processNonce(), V5Sign.processStarted());
+    }
+
+    /**
+     * v5 一跳：注册身份 → gzip 体 → v5 签名（票号在 1024 内搜到分支 0）→ POST。
+     *
+     * <p>空正文按 {@link EmptyPlaybackResponseException} 上抛（与旧路径同类，{@code fetch} 会继续下一跳）；
+     * 非 200 按 {@link PlaybackHttpException}。响应同时支持 flat（{@code data[vid]}）与
+     * {@code data.1004[vid]} 两种形态，模型交给 {@link #parseModel}。
+     */
+    static Stream.VideoTrack fetchMobileV5(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
+        // 签名必须绑定「实际发出的字节」：先 gzip 一次，签名与 req.body 用同一份。
+        byte[] body = gzip(mobileV5Body(vid));
+        long nowMs = System.currentTimeMillis();
+        long ts = nowMs / 1000L;
+        V5Sign.Signed signed = V5Sign.signPlayback(MOBILE_V5_API, mobileV5Query(identity, nowMs),
+                body, mobileV5Identity(identity), ts, nowMs, null);
+        Http.Req req = new Http.Req(signed.url).method("POST").timeout(PLAYBACK_TIMEOUT_MS);
+        req.followRedirect = false;
+        req.header("User-Agent", MOBILE_V5_UA);
+        req.header("Accept", "application/json");
+        req.header("Content-Type", "application/json; charset=utf-8");
+        req.header("Content-Encoding", "gzip");
+        // 官方形态：x-ss-stub 是 gzip 后字节的大写 MD5（在签名之外单独放）。
+        req.header("x-ss-stub", Crypto.md5HexUpper(body));
+        for (Map.Entry<String, String> e : signed.headers.entrySet()) {
+            req.header(e.getKey(), e.getValue());
+        }
+        req.body(body);
+        Http.Resp res = Http.send(req);
+        if (res.status != 200) throw new PlaybackHttpException(res.status);
+        if (res.body == null || res.body.length == 0 || res.text().trim().isEmpty()) {
+            throw new EmptyPlaybackResponseException();
+        }
+        return parseModel(vid, parseMobileV5Response(vid, res.text()), quality);
+    }
+
+    /**
+     * 把 v5 播放响应整理成 {@link #parseModel} 认识的 {@code {code:0, data:{vid:{video_model}}}}。
+     *
+     * <p>上游 {@code MobilePlayback.ladder}：{@code data = root.data}，{@code entries = data["1004"] ?? data}，
+     * 模型取 {@code entries[vid].video_model}（对象或 JSON 字符串）。只取精确分集号，绝不借用
+     * 同批响应里其他分集的模型。
+     */
+    static Map<String, Object> parseMobileV5Response(String vid, String text) {
+        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
+        Map<String, Object> root = parsePlaybackResponse(text);
+        // 上游 MobilePlayback.ladder 先 PlaybackModels.checkStatus(root)：非 0 code 直接判为上游拒绝，
+        // 不能当成「本集没有片源」，否则回退链会误以为换身份就能解决。
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code != null && Json.optInt(code, 0) != 0) {
+            throw new IllegalStateException("播放接口拒绝请求（错误码 " + Json.optStr(code, "") + "）");
+        }
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        if (data == null) throw new IllegalStateException("App 接口未返回播放数据");
+        Map<String, Object> entries = Json.optObj(data.get("1004"));
+        if (entries == null || entries.isEmpty()) entries = data;
+        Map<String, Object> row = Json.optObj(entries.get(vid));
+        if (row == null || row.isEmpty()) throw new IllegalStateException("App 接口未返回所选分集");
+        Map<String, Object> model = asObject(row.get("video_model"));
+        if (model.isEmpty()) throw new IllegalStateException("App 接口未返回 video_model");
+        Map<String, Object> entry = Json.obj();
+        entry.put("video_model", model);
+        Map<String, Object> episodes = Json.obj();
+        episodes.put(vid, entry);
+        Map<String, Object> out = Json.obj();
+        out.put("code", 0L);
+        out.put("data", episodes);
+        return out;
     }
 
     /** 区分空响应（疑似设备身份被拒）与其他无效响应。空响应不值得用同一身份重试。 */

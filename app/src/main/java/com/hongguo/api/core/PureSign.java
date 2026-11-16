@@ -37,7 +37,7 @@ public final class PureSign {
 
     private PureSign() {}
 
-    private static final SecureRandom RND = new SecureRandom();
+    static final SecureRandom RND = new SecureRandom();
 
     // ==================== 基础位运算（对齐 JS 的 u32 语义） ====================
 
@@ -68,37 +68,37 @@ public final class PureSign {
         return r;
     }
 
-    private static int le32(byte[] b, int off) {
+    static int le32(byte[] b, int off) {
         return (b[off] & 0xFF) | ((b[off + 1] & 0xFF) << 8)
                 | ((b[off + 2] & 0xFF) << 16) | ((b[off + 3] & 0xFF) << 24);
     }
 
-    private static int be32(byte[] b, int off) {
+    static int be32(byte[] b, int off) {
         return ((b[off] & 0xFF) << 24) | ((b[off + 1] & 0xFF) << 16)
                 | ((b[off + 2] & 0xFF) << 8) | (b[off + 3] & 0xFF);
     }
 
-    private static void putLe32(byte[] b, int off, int v) {
+    static void putLe32(byte[] b, int off, int v) {
         b[off] = (byte) v;
         b[off + 1] = (byte) (v >>> 8);
         b[off + 2] = (byte) (v >>> 16);
         b[off + 3] = (byte) (v >>> 24);
     }
 
-    private static void putBe32(byte[] b, int off, int v) {
+    static void putBe32(byte[] b, int off, int v) {
         b[off] = (byte) (v >>> 24);
         b[off + 1] = (byte) (v >>> 16);
         b[off + 2] = (byte) (v >>> 8);
         b[off + 3] = (byte) v;
     }
 
-    private static byte[] le32(int v) {
+    static byte[] le32(int v) {
         byte[] b = new byte[4];
         putLe32(b, 0, v);
         return b;
     }
 
-    private static byte[] be32(int v) {
+    static byte[] be32(int v) {
         byte[] b = new byte[4];
         putBe32(b, 0, v);
         return b;
@@ -118,7 +118,7 @@ public final class PureSign {
         for (int i = 0; i < 8; i++) b[off + i] = (byte) (v >>> (8 * i));
     }
 
-    private static byte[] concat(byte[]... parts) {
+    static byte[] concat(byte[]... parts) {
         int n = 0;
         for (byte[] p : parts) n += p.length;
         byte[] out = new byte[n];
@@ -130,21 +130,21 @@ public final class PureSign {
         return out;
     }
 
-    private static byte[] xorBytes(byte[] a, byte[] b) {
+    static byte[] xorBytes(byte[] a, byte[] b) {
         byte[] out = a.clone();
         for (int i = 0; i < out.length; i++) out[i] ^= b[i % b.length];
         return out;
     }
 
-    private static byte[] md5(byte[] data) {
+    static byte[] md5(byte[] data) {
         return Crypto.md5(data);
     }
 
-    private static byte[] sm3(byte[] data) {
+    static byte[] sm3(byte[] data) {
         return Sm3.hash(data);
     }
 
-    private static String b64(byte[] data) {
+    static String b64(byte[] data) {
         return Base64.getEncoder().encodeToString(data);
     }
 
@@ -169,7 +169,7 @@ public final class PureSign {
     }
 
     /** 单个 protobuf 字段。type: string/bytes/message/float/sint/int。 */
-    private static byte[] protoField(long tag, Object value, String type) {
+    static byte[] protoField(long tag, Object value, String type) {
         if (value == null) return new byte[0];
         if ("string".equals(type) && "".equals(value)) return new byte[0];
         byte[] head;
@@ -197,7 +197,7 @@ public final class PureSign {
     }
 
     /** proto([[tag, value, type], ...]) 的紧凑写法。 */
-    private static byte[] proto(Object[][] fields) {
+    static byte[] proto(Object[][] fields) {
         List<byte[]> parts = new ArrayList<>();
         for (Object[] f : fields) {
             String type = f.length > 2 ? String.valueOf(f[2]) : "string";
@@ -209,7 +209,7 @@ public final class PureSign {
     // ==================== hashF13 家族 ====================
 
     /** getIv：按字节奇偶交替混合的 32 位状态机。 */
-    private static int getIv(int iv, byte[] data) {
+    static int getIv(int iv, byte[] data) {
         int value = iv;
         for (int i = 0; i < data.length; i++) {
             int d = data[i] & 0xFF;
@@ -223,7 +223,7 @@ public final class PureSign {
     }
 
     /** sumMd5：取前 12 字节的固定轮混淆，末位或 4 再异或 0x1000000。 */
-    private static int sumMd5(byte[] data) {
+    static int sumMd5(byte[] data) {
         int check = 0x20220420;
         for (int i = 0; i < 12; i++) {
             int temp = (i & 1) == 0 ? ((check >>> 3) ^ check) : ((check >>> 5) ^ check);
@@ -339,20 +339,47 @@ public final class PureSign {
         return md5SumV3(input, countV2, orders, countV1);
     }
 
-    /** hashF13：按 iv 低 4 位选分支（0 为主分支，1 不被服务端接受，2 为备用变体）。 */
+    /** v5 的 hashF13 固定种子（v3 是按分支从 6 个值里选）。 */
+    static final int HASH_SEED_V5 = 0x9d4a97c2;
+
+    /** hashF13（v3 家族）：按 iv 低 4 位选分支（0 为主分支，1 不被服务端接受，2 为备用变体）。 */
     private static byte[] hashF13(byte[] querySm3, byte[] bodyMd5, byte[] tsBytes, long khronos) {
+        return hashF13(querySm3, bodyMd5, tsBytes, khronos, false);
+    }
+
+    /**
+     * hashF13 的 v3 / v5 共用实现。
+     *
+     * <p>v5 与 v3 的差别只有四处（其余调度、轮常量完全一致）：
+     * <ol>
+     *   <li>入口：v5 只接受 {@code (iv & 15) == 12}，且不分表 —— 固定 {@code ivV1 = 0x9d4a97c2}；</li>
+     *   <li>轮数/{@code chosen} 状态选择表：v5 为 {@code (96,1,3,4,0,6,5,2,0,7,7)}；</li>
+     *   <li>尾部校验和：v5 额外置 bit 5（{@code | 0x20}）；</li>
+     *   <li>输出仍为 20 字节（16 字节折叠摘要 + 4 字节校验和）。</li>
+     * </ol>
+     * 这些差异全部由参数驱动，v3 路径的字节行为保持原样（{@code v5 == false}）。
+     */
+    static byte[] hashF13(byte[] querySm3, byte[] bodyMd5, byte[] tsBytes, long khronos, boolean v5) {
         int iv = getIv(getIv(getIv(0x20230928, querySm3), bodyMd5), tsBytes);
         int low = iv & 15;
-        int ivV0 = (low * 171) >> 9;
-        int branch = low - ivV0 * 3;
-        if (branch == 2) return branch2F13(iv, querySm3, bodyMd5, tsBytes, khronos);
-        if (branch != 0) {
-            return concat(slice(querySm3, 0, 16), bodyMd5,
-                    le32(sumMd5(concat(querySm3, bodyMd5))));
+        int ivV0;
+        int ivV1;
+        if (v5) {
+            // 上游 Signer.kt：mobileV5 时 lower nibble 必须为 12，ivV1 固定 0x9d4a97c2。
+            if (low != 12) throw new IllegalStateException("Unsupported hash branch");
+            ivV0 = 0;
+            ivV1 = HASH_SEED_V5;
+        } else {
+            ivV0 = (low * 171) >> 9;
+            int branch = low - ivV0 * 3;
+            if (branch == 2) return branch2F13(iv, querySm3, bodyMd5, tsBytes, khronos);
+            if (branch != 0) {
+                return concat(slice(querySm3, 0, 16), bodyMd5,
+                        le32(sumMd5(concat(querySm3, bodyMd5))));
+            }
+            ivV1 = new int[]{
+                    0xc4a78580, 0xb3c0fd39, 0xc58c5686, 0xc9aa3ba7, 0xf5a7adf2, 0x963c2ed1}[ivV0];
         }
-
-        int[] ivV1List = {0xc4a78580, 0xb3c0fd39, 0xc58c5686, 0xc9aa3ba7, 0xf5a7adf2, 0x963c2ed1};
-        int ivV1 = ivV1List[ivV0];
         int countV1 = (int) ((ivV1 + khronos + 1) & 255);
         int countV2 = (int) (ivV1 + khronos);
         int[] tt02 = {
@@ -397,7 +424,9 @@ public final class PureSign {
                 {99, 3, 6, 2, 4, 5, 1, 0, 0, 7, 6},
                 {96, 0, 5, 6, 7, 3, 1, 2, 5, 4, 4},
                 {100, 2, 0, 3, 5, 4, 6, 7, 2, 1, 5}};
-        int[] chosen = chosenTable[ivV0];
+        int[] chosen = v5
+                ? new int[]{96, 1, 3, 4, 0, 6, 5, 2, 0, 7, 7}
+                : chosenTable[ivV0];
         int[] d = init.clone();
         for (int i = 0; i < chosen[0]; i++) {
             int base = (int) (ivV1 + i);
@@ -419,10 +448,12 @@ public final class PureSign {
         byte[] ret = new byte[32];
         for (int i = 0; i < 8; i++) putBe32(ret, i * 4, (d[i] + init[i]));
         for (int i = 0; i < 16; i++) ret[i] = (byte) (ret[i] ^ ret[i + 16]);
-        return concat(slice(ret, 0, 16), le32(sumMd5(slice(ret, 0, 16))));
+        byte[] folded = slice(ret, 0, 16);
+        // v5 的校验和额外置 bit 5（Signer.kt: sumMd5(folded) or 0x20）。
+        return concat(folded, le32(sumMd5(folded) | (v5 ? 0x20 : 0)));
     }
 
-    private static byte[] slice(byte[] b, int from, int to) {
+    static byte[] slice(byte[] b, int from, int to) {
         byte[] out = new byte[to - from];
         System.arraycopy(b, from, out, 0, out.length);
         return out;
@@ -453,7 +484,7 @@ public final class PureSign {
         return out;
     }
 
-    private static String xGorgon(String query, byte[] body, long timestamp, int random) {
+    static String xGorgon(String query, byte[] body, long timestamp, int random) {
         byte[] q4 = slice(md5(query.getBytes(StandardCharsets.UTF_8)), 0, 4);
         byte[] b4 = body != null && body.length > 0
                 ? slice(md5(body), 0, 4) : new byte[4];
@@ -476,25 +507,52 @@ public final class PureSign {
             "+n0Ia5xZs0sEXznQOEqRmQBnpiCf9U2Ccybu3xhmgzOAAxn72f6uqqmwUsYL83klTni0NqxdGieeiNu9PGPsSRXBMB/cuFbUbM3KCUPINaPvHvSW0vwOcnuUhNHqRVpiAj/TEoE0K91+5ijypUYTATsh9mE3KSoN7Yyvv51cuyR2D3XkU4nhmI2xmmVwT1RMWKtub4sjxAcRDLrPoKSO2AU9FLLadMPX577Wf95IFj6FkKFVt3dCIsmGUC4X+WQxLJvxbRxEaOPpqJOXyzJX6+Vxaq3AzMfF/WAdoi1Hp+JRaV56zgpBtpWP97mH4DoGEIq1+FvV8LyS/3wvwugbQOwb2r26mJEMsiuDQTRn+wrYdrVGBVlhI3WQhyrjUBVMrLF5667llUcEaPCGPVGLD8qO5LlO8hKCvA7V9+8oJc9bXelqVQLhM76T5/WtnT45JKji+hdX0HoNCDDWuKON/QeaxB5uImSX0h2wv0VmP2zd2yeApxHcpsVS+MC2yFwAc2B7oBkTqsk1SEvTpM2fmfMQREBUfin0Bh+iq6EvPPavhWI2IX9e3yAas7Tm/3KEj2UmlFp36kN4x0rMLBRrxuh0U/zUHM4xcAMYjJY4MonxOl/X+alpt2M3WMI7w3HLnpIBigtNiJu7T21v4P6lSd5WFgntnMEt7oF92XzRLkJbTcGmXepE/UVOG6E/0YnhfS+q26utWcuxzpooyeD2cDlK1/8w9d28VzsRjbLuALbmGlp8+d7EzS6Au7lMpZ+ECMZvQmzwJ+eLOpxR+2chdUExp8ogQyq3v9l68rX4jCwjg0+PYKAEEzcU4wHFY2ZcdIHfWL1okD3SszT0GZMyKdZJrg1L2AeerB4tC0C4crp2EHGo5FYdSP7lwkeR2ocmnR+Ia8CYviUJlzOjhRZef9xuVOn3qcjow3fQgivsAmKKkg4+sA8F8/GWeDiGNhg8JM8KtFPMYWWkx5TVFX5t73kiNRJqjlIGVXtGZFCV4gzt0xcDopuZ6xz8r9Rzafpf9ywev8jh8592gHFIqpStZPuJxmDDMrNN0uBE3V+oscdoIzTJbRJ/t+sVvqnReJOgDJKk10fjisJwqyZBmnmn2BSFj8BvVtCMEbkuPOKdzw7eA11GPs04Qw8zWtkaZWwiO/wwpojqN6K0jY5RnNZA7vn4hPSul+nKCkVnVwQvg1zVxcSCtqORmB9KrJaBbssbCQivGJVJfVTt+hYxOtq4ZvWl8f4QAQZ0zGPffCgl9s6yT4vlvIdpu4YhBwA25wtQWZsc6GJYGWHyvSdeuh3mmUI9DSq13Fsp8C1MU3tqc04/df9LoTUXVXI5INOw/e8C7Hd+5CvbkMEFnnrUUmskEw==");
 
     /** AES 变体：S 盒按 khronos 选段、行/列换用查表、密钥扩展 12 组。 */
-    private static final class AesV3 {
+    static final class AesV3 {
         private final int wordSize;
+        private final boolean v5;
         private final byte[] box;
         private final int[] con2;
         private final int[] order;
         private final int[][] keys;
+        /** 明文具化 / 密文回填用的位序表（v5 与 v3 不同，在构造器内按模式选定）。 */
+        private final int[] wire;
+        private final int[] compact;
 
         AesV3(byte[] key, long khronos) {
+            this(key, khronos, null);
+        }
+
+        /**
+         * v3 / v5 共用实现。{@code boxSource} 为 null 时是 v3（用 {@link PureSign#SBOX} 与 v3 四表）；
+         * 传入 1024 字节的 v5 表时切到 v5 —— 只换按 khronos 低 2 位选取的四张表（S 盒段、行置换、
+         * 列序、初始字）与 {@link #encrypt} 的位序表，轮函数结构完全相同。
+         */
+        AesV3(byte[] key, long khronos, byte[] boxSource) {
             this.wordSize = (int) (khronos & 3);
-            this.box = slice(SBOX, this.wordSize * 256, (this.wordSize + 1) * 256);
-            int[][] con2Table = {{1, 0, 2, 3}, {2, 0, 3, 1}, {0, 1, 3, 2}, {1, 0, 2, 3}};
-            int[][] orderTable = {
-                    {0, 9, 14, 11, 4, 13, 2, 7, 8, 1, 6, 15, 12, 5, 10, 3},
-                    {0, 9, 14, 15, 4, 13, 2, 7, 8, 1, 6, 3, 12, 5, 10, 11},
-                    {0, 9, 14, 7, 4, 13, 2, 11, 8, 1, 6, 3, 12, 5, 10, 15},
-                    {0, 9, 14, 11, 4, 13, 2, 7, 8, 1, 6, 15, 12, 5, 10, 3}};
+            this.v5 = boxSource != null;
+            this.wire = v5 ? new int[]{6, 5, 3, 4, 2, 7, 1, 0} : new int[]{5, 6, 2, 4, 3, 1, 0, 7};
+            this.compact = v5 ? new int[]{1, 7, 3, 6, 2, 0, 4, 5} : new int[]{1, 6, 0, 7, 2, 4, 5, 3};
+            this.box = slice(v5 ? boxSource : SBOX,
+                    this.wordSize * 256, (this.wordSize + 1) * 256);
+            int[][] con2Table = v5
+                    ? new int[][]{{2, 0, 3, 1}, {1, 3, 2, 0}, {3, 2, 1, 0}, {2, 3, 1, 0}}
+                    : new int[][]{{1, 0, 2, 3}, {2, 0, 3, 1}, {0, 1, 3, 2}, {1, 0, 2, 3}};
+            int[][] orderTable = v5
+                    ? new int[][]{
+                            {0, 9, 14, 15, 4, 13, 2, 7, 8, 1, 6, 3, 12, 5, 10, 11},
+                            {0, 9, 14, 11, 4, 13, 2, 3, 8, 1, 6, 15, 12, 5, 10, 7},
+                            {0, 9, 14, 3, 4, 13, 2, 15, 8, 1, 6, 11, 12, 5, 10, 7},
+                            {0, 9, 14, 15, 4, 13, 2, 3, 8, 1, 6, 11, 12, 5, 10, 7}}
+                    : new int[][]{
+                            {0, 9, 14, 11, 4, 13, 2, 7, 8, 1, 6, 15, 12, 5, 10, 3},
+                            {0, 9, 14, 15, 4, 13, 2, 7, 8, 1, 6, 3, 12, 5, 10, 11},
+                            {0, 9, 14, 7, 4, 13, 2, 11, 8, 1, 6, 3, 12, 5, 10, 15},
+                            {0, 9, 14, 11, 4, 13, 2, 7, 8, 1, 6, 15, 12, 5, 10, 3}};
             this.con2 = con2Table[this.wordSize];
             this.order = orderTable[this.wordSize];
-            int init = new int[]{0xca025ddc, 0x823dc546, 0xc9420583, 0xc298225f}[this.wordSize];
+            int init = (v5
+                    ? new int[]{0xbbb5de72, 0xd4638d5b, 0x92a5f73b, 0x89f8a1c9}
+                    : new int[]{0xca025ddc, 0x823dc546, 0xc9420583, 0xc298225f})[this.wordSize];
             byte[] initial = new byte[16];
             for (int i = 0; i < 4; i++) putLe32(initial, i * 4, init);
             byte[] mk = xorBytes(initial, key);
@@ -579,16 +637,14 @@ public final class PureSign {
         /** 加密：明文具化到 32 字节 -> CBC 两轮 -> 按 key 逐位回填源数据，末尾缀 key 末字节。 */
         byte[] encrypt(byte[] data, byte[] iv) {
             byte[] plaintext = new byte[32];
+            // 位具化：source[i*8+j] 的第 wire[j] 位 -> plaintext[i] 的第 compact[j] 位（上游 AesV3.encrypt）。
             for (int i = 0; i < 31; i++) {
                 int at = i * 8;
-                int n0 = (src(data, at) >> 4) & 2;
-                int n1 = n0 | (src(data, at + 1) & 64);
-                int n2 = n1 | ((src(data, at + 2) >> 2) & 1);
-                int n3 = n2 | ((src(data, at + 3) << 3) & 128);
-                int n4 = n3 | ((src(data, at + 4) >> 1) & 4);
-                int n5 = n4 | ((src(data, at + 5) << 3) & 16);
-                int n6 = n5 | ((src(data, at + 6) << 5) & 32);
-                plaintext[i] = (byte) (n6 | ((src(data, at + 7) >> 4) & 8));
+                int value = 0;
+                for (int j = 0; j < 8; j++) {
+                    value |= ((src(data, at + j) >> wire[j]) & 1) << compact[j];
+                }
+                plaintext[i] = (byte) value;
             }
             plaintext[31] = 1;
             List<byte[]> blocks = new ArrayList<>();
@@ -603,15 +659,12 @@ public final class PureSign {
             for (int i = 0; i < 31; i++) {
                 int at = i * 8;
                 int k = key[i] & 0xFF;
-                // JS 语义：越界读写均静默忽略，故读用 src()、写用 put()
-                put(out, at, (src(out, at) & 0xdf) | ((k << 4) & 32));
-                put(out, at + 1, (src(out, at + 1) & 0xbf) | (k & 64));
-                put(out, at + 2, (src(out, at + 2) & 0xfb) | ((k << 2) & 4));
-                put(out, at + 3, (src(out, at + 3) & 0xef) | ((k >> 3) & 16));
-                put(out, at + 4, (src(out, at + 4) & 0xf7) | ((k + k) & 8));
-                put(out, at + 5, (src(out, at + 5) & 0xfd) | ((k >> 3) & 2));
-                put(out, at + 6, (src(out, at + 6) & 0xfe) | ((k >> 5) & 1));
-                put(out, at + 7, (src(out, at + 7) & 0x7f) | ((k << 4) & 128));
+                // 位回填：key[i] 的第 compact[j] 位 -> out[i*8+j] 的第 wire[j] 位。
+                for (int j = 0; j < 8; j++) {
+                    int bit = (k >> compact[j]) & 1;
+                    put(out, at + j, (src(out, at + j) & ~(1 << wire[j]))
+                            | (bit << wire[j]));
+                }
             }
             return concat(slice(key, key.length - 1, key.length), out);
         }
@@ -658,7 +711,7 @@ public final class PureSign {
     // ==================== xmxor / keyHash / medusa / helios ====================
 
     /** xmxor：按 key 表逐字节混淆 + 三段尾部修正。 */
-    private static byte[] xmxor(byte[] data, byte[] key) {
+    static byte[] xmxor(byte[] data, byte[] key) {
         byte[] encoded = new byte[data.length];
         for (int i = 0; i < data.length; i++) {
             int at = (i * 4) & 28;
@@ -689,13 +742,16 @@ public final class PureSign {
     }
 
     /** keyHash：signKey || le32(random) || signKey 的 SM3，附一个由 random 派生的 4 字节种子。 */
-    private static byte[][] keyHash(byte[] signKey, int random) {
+    static byte[][] keyHash(byte[] signKey, int random) {
         byte[] hash = sm3(concat(signKey, le32(random), signKey));
         int d1 = (random >> 16) & 255;
         int d2 = (((d1 << 11) | (random >>> 24)) ^ (d1 >> 5) ^ d1);
         d2 = ~d2;
         return new byte[][]{hash, le32(d2)};
     }
+
+    /** v3 播放签名里的 helios license 段。 */
+    static final String HELIOS_LICENSE_V3 = "1588093228";
 
     private static final byte[] MEDUSA_SIGN_KEY = Crypto.unhex(
             "8ebdfa3806ecc5cee79423e6029ed82540bc2218bb7eaef71cb691f7aa8aa2f5");
@@ -707,9 +763,9 @@ public final class PureSign {
     /** 进程级 nonce（18 随机字节的 base64url）。 */
     private static final String PROCESS_NONCE =
             Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes(18));
-    private static final long PROCESS_STARTED = System.currentTimeMillis();
+    static final long PROCESS_STARTED = System.currentTimeMillis();
 
-    private static byte[] randomBytes(int n) {
+    static byte[] randomBytes(int n) {
         byte[] b = new byte[n];
         RND.nextBytes(b);
         return b;
@@ -805,11 +861,19 @@ public final class PureSign {
 
     /** helios：md5  ASCII 化 -> 64 位字表 -> 34 轮扩展 -> 分组类 Feistel。 */
     private static String helios(long khronos) {
-        return helios(khronos, RND.nextInt());
+        return helios(khronos, RND.nextInt(), HELIOS_LICENSE_V3);
     }
 
     /** 测试钩子：可注入 random 的 helios（默认重载用 RND.nextInt()）。 */
     static String helios(long khronos, int random) {
+        return helios(khronos, random, HELIOS_LICENSE_V3);
+    }
+
+    /**
+     * helios 参数化版本：v3 用 {@code 1588093228}，v5 用 {@link V5Sign#LICENSE}（{@code 646637794}）。
+     * 除 license 段外两代算法完全一致（上游 {@code Signer.helios} 只换 license 常量）。
+     */
+    static String helios(long khronos, int random, String licenseId) {
         byte[] digest = md5(concat(le32(random), "8662".getBytes(StandardCharsets.UTF_8)));
         StringBuilder hex = new StringBuilder(32);
         for (byte x : digest) hex.append(String.format("%02x", x));
@@ -835,7 +899,7 @@ public final class PureSign {
             b0 = x8;
             b8 = queue.pollFirst();
         }
-        String text = khronos + "-1588093228-8662";
+        String text = khronos + "-" + licenseId + "-8662";
         byte[] tb = text.getBytes(StandardCharsets.UTF_8);
         int padLen = ((tb.length + 1 + 15) / 16) * 16;
         byte[] pad = new byte[padLen];
@@ -873,7 +937,7 @@ public final class PureSign {
         return low - (((low * 171) >> 9) * 3);
     }
 
-    private static String queryOf(String url) {
+    static String queryOf(String url) {
         int i = url.indexOf('?');
         return i < 0 ? "" : url.substring(i + 1);
     }

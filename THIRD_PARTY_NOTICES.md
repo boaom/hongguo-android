@@ -143,3 +143,31 @@ Local changes: the single model goes through the same `parseModel` rules (ByteVC
 ## 漫剧榜单续页修复（2026-11-14）
 
 参考 [sunnysky123/hongguo-web `1b00f06`](https://github.com/sunnysky123/hongguo-web/commit/1b00f06)（2026-11-13，MIT）：`cell/change` 不依赖 offset，而以 `filter_ids` 排除已展示作品。本地 Java 实现保留有界请求、取消检查、唯一 ID 累积和绝对榜单序号。
+
+### v5 playback signing (2026-11-16)
+
+From 2026-11-16 the player endpoint rejects the former v3 Medusa request with an empty HTTP 200
+response, and re-registering an anonymous identity does not help. `core/V5Sign.java` and the
+`AppSource.fetchMobileV5` hop implement the Android `v04.10.03` form: endpoint
+`/novel/player/multi_video_model/player/v1`, gzip JSON body, and a `mobileV5` Medusa / Helios /
+Khronos signature whose hashF13 uses seed `0x9d4a97c2`, 96 rounds, a fixed state selection and a
+checksum that also sets bit 5; the request ticket is adjusted before signing so that
+`(iv & 15) == 12` selects branch 0, bounded at 1024 tickets. Responses are selected by exact
+episode ID and support both flat and `data.1004` maps. Synchronized from N3urda/hongguoTV, commit
+`18c37c2` (2026-11-16) plus `14771e0`, GPL-3.0-only — `kotlin-tv/SIGNING_V5.md`,
+`kotlin-tv/core/.../Signer.kt` (`mobileV5`), `V5Constants.kt`, `AesV3.kt` and `MobilePlayback.kt`.
+  https://github.com/N3urda/hongguoTV/tree/18c37c2/kotlin-tv
+
+The existing PureSign code remains the implementation base and is parameterised rather than
+replaced: `PureSign.hashF13(..., v5)` grows the v5 seed / state table / checksum, `PureSign.AesV3`
+takes the v5 sbox and its four per-timestamp tables, and `PureSign.helios` takes the license id
+(`646637794` for v5). `V5Sign` only adds the v5 wire constants, the `medusaV5` message layout, the
+ticket search and the header set.
+
+Local changes: the v5 hop runs first and every earlier route (the 2026-11-13 two-hop
+`PlaybackSignature` flow, the single-episode POST, and the unsigned/signed `PLAYBACK_ROUTES`
+fallback) is kept as a fallback, so a v5 rejection cannot regress a working episode. Unlike
+upstream's TV client the hop does not fork a separate identity per attempt: it reuses the
+identity the caller already registered. The synthetic digest and carrier vectors from
+`kotlin-tv/core/src/test/resources` are ported into `V5SignTest` so CI checks the digest and AES
+paths without an SDK or a captured session.
