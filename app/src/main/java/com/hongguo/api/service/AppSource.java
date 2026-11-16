@@ -126,8 +126,22 @@ public final class AppSource {
         Exception failure = null;
         Exception modelFailure = null;
         IOException renewal = null;
-        // 2026-11-11 起旧的多集接口（GET video_tab / POST）对占位 argus/ladon 一律回空，先走完整签名的单集接口；
-        // 它失败时再按原顺序试旧路径。
+        // 2026-11-13 上游把播放形态又推进了一版：先按参考实现（hongguo-web f662f0b/1b00f06）的
+        // video_tab 签名 GET（73932 / 7.3.9.32）打，空响应再换新身份用旧 POST（gzip 体，74332 / 7.4.3.32）；
+        // 两跳都用 551 真签名（PlaybackSignature）。都空才退到下面的旧路径。
+        try {
+            return playerSignaturePlayback.get(vid, quality);
+        } catch (InterruptedIOException e) {
+            throw e;
+        } catch (EmptyPlaybackResponseException e) {
+            // 与旧路径的空响应同类，交给下面的路径。
+        } catch (PlaybackHttpException | IOException e) {
+            if (Thread.currentThread().isInterrupted()) throw e;
+            failure = e;
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) throw e;
+            modelFailure = e;
+        }
         try {
             return singlePlayback.get(vid, quality, identity);
         } catch (InterruptedIOException e) {
@@ -241,6 +255,17 @@ public final class AppSource {
 
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         singlePlayback = playback == null ? AppSource::fetchSingle : playback;
+    }
+
+    /** 参考实现当前形态的取流（video_tab 签名 GET → 旧 POST gzip 体）；JVM 测试注入。 */
+    interface PlayerSignaturePlayback {
+        Stream.VideoTrack get(String vid, String quality) throws Exception;
+    }
+
+    private static PlayerSignaturePlayback playerSignaturePlayback = AppSource::fetchWithPlayerSignature;
+
+    static void setPlayerSignaturePlaybackForTest(PlayerSignaturePlayback playback) {
+        playerSignaturePlayback = playback == null ? AppSource::fetchWithPlayerSignature : playback;
     }
 
     /** 可替换的 video_tab 请求（JVM 测试注入）；返回 null 表示该接口不可用、应回退旧流程。 */
@@ -879,6 +904,175 @@ public final class AppSource {
     }
 
     /** 区分空响应（疑似设备身份被拒）与其他无效响应。空响应不值得用同一身份重试。 */
+    // ==================== 参考实现形态的播放请求（2026-11-13 同步） ====================
+
+    private static final String PLAYBACK_TAB_VERSION_CODE = "73932";
+    private static final String PLAYBACK_TAB_VERSION_NAME = "7.3.9.32";
+    private static final String PLAYBACK_POST_VERSION_CODE = "74332";
+    private static final String PLAYBACK_POST_VERSION_NAME = "7.4.3.32";
+    static final String TAB_PLAYBACK_API = "https://" + VIDEO_API_HOST + "/reading/bookapi/video_tab/multi_video_model/v1/";
+
+    /** 两跳：video_tab 签名 GET → 旧 POST（gzip 体，换新身份）。都空才抛空响应交给旧路径。 */
+    static Stream.VideoTrack fetchWithPlayerSignature(String vid, String quality) throws Exception {
+        {
+            PlaybackDevice.Identity identity = PlaybackDevice.fresh();
+            SignedPlayback tab = tabSignatureRequest(identity, vid, System.currentTimeMillis());
+            Http.Resp res = sendSigned(tab.url, tab.headers, null, "GET");
+            if (res.status == 200 && res.text != null && !res.text.trim().isEmpty()) {
+                return parseModel(vid, wrapTabModel(vid, res.text), quality);
+            }
+        }
+        {
+            PlaybackDevice.Identity identity = PlaybackDevice.fresh();
+            SignedPlayback post = postSignatureRequest(identity, vid, System.currentTimeMillis());
+            Http.Resp res = sendSigned(post.url, post.headers, post.body, "POST");
+            if (res.status != 200) throw new PlaybackHttpException(res.status);
+            if (res.text == null || res.text.trim().isEmpty()) throw new EmptyPlaybackResponseException();
+            return parseModel(vid, parsePlaybackResponse(res.text), quality);
+        }
+    }
+
+    private static Http.Resp sendSigned(String url, Map<String, String> headers, byte[] body, String method) throws Exception {
+        Http.Req req = new Http.Req(url).method(method).timeout(PLAYBACK_TIMEOUT_MS);
+        req.followRedirect = false;
+        for (Map.Entry<String, String> e : headers.entrySet()) req.header(e.getKey(), e.getValue());
+        if (body != null) req.body(body);
+        return Http.send(req);
+    }
+
+    /** video_tab 签名 GET：73932 / 7.3.9.32，业务参数在设备字段之后、ts/_rticket 之前。 */
+    static SignedPlayback tabSignatureRequest(PlaybackDevice.Identity identity, String vid, long nowMs) {
+        Map<String, String> device = playbackDevice(PLAYBACK_TAB_VERSION_CODE, PLAYBACK_TAB_VERSION_NAME);
+        Map<String, String> values = new LinkedHashMap<>(tabQuery(vid));
+        String query = playbackQuery(device, identity, values, nowMs);
+        String url = TAB_PLAYBACK_API + "?" + query;
+        return new SignedPlayback(url, playbackHeaders(PLAYBACK_TAB_VERSION_CODE, query, null, nowMs, true));
+    }
+
+    /** 旧 POST 签名请求：gzip 正文 + Content-Encoding，74332 / 7.4.3.32。 */
+    static SignedPlayback postSignatureRequest(PlaybackDevice.Identity identity, String vid, long nowMs) throws Exception {
+        Map<String, String> device = playbackDevice(PLAYBACK_POST_VERSION_CODE, PLAYBACK_POST_VERSION_NAME);
+        String query = playbackQuery(device, identity, new LinkedHashMap<>(), nowMs);
+        byte[] body = gzip(legacyPlaybackBody(vid));
+        String url = VIDEO_API.replace(VIDEO_API_HOST, VIDEO_API_HOST) + "?" + query;
+        return new SignedPlayback(url, playbackHeaders(PLAYBACK_POST_VERSION_CODE, query, body, nowMs, false), body);
+    }
+
+    /** 参考实现 payload(vid)：biz_param + mixed_video_id_map。 */
+    static byte[] legacyPlaybackBody(String vid) {
+        Map<String, Object> biz = Json.obj();
+        biz.put("detail_page_version", 0);
+        biz.put("device_level", 3);
+        biz.put("disable_digg_stat", false);
+        biz.put("need_all_video_definition", true);
+        biz.put("need_mp4_align", false);
+        biz.put("use_os_player", false);
+        biz.put("use_server_dns", false);
+        biz.put("video_platform", 1024);
+        Map<String, Object> mixed = Json.obj();
+        mixed.put("1004", Json.arr(vid));
+        Map<String, Object> out = Json.obj();
+        out.put("biz_param", biz);
+        out.put("mixed_video_id_map", mixed);
+        return Json.stringify(out).getBytes(StandardCharsets.UTF_8);
+    }
+
+    static byte[] gzip(byte[] data) throws IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(out)) {
+            gz.write(data);
+        }
+        return out.toByteArray();
+    }
+
+    /** 设备参数按参考实现的插入序（deviceBase 顺序一致），版本字段统一改写。 */
+    static Map<String, String> playbackDevice(String versionCode, String versionName) {
+        Map<String, String> device = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : deviceBase().entrySet()) device.put(e.getKey(), String.valueOf(e.getValue()));
+        for (String name : new String[]{"version_code", "manifest_version_code", "update_version_code", "pv_player"}) {
+            device.put(name, versionCode);
+        }
+        device.put("version_name", versionName);
+        return device;
+    }
+
+    /** 身份 + 业务参数 + ts/_rticket；query 按插入序编码（星号不转）。 */
+    static String playbackQuery(Map<String, String> device, PlaybackDevice.Identity identity,
+                                Map<String, String> values, long nowMs) {
+        Map<String, String> q = new LinkedHashMap<>(device);
+        q.put("device_id", identity.deviceId);
+        q.put("iid", identity.iid);
+        q.put("cdid", identity.cdid);
+        q.putAll(values);
+        q.put("ts", String.valueOf(nowMs / 1000L));
+        q.put("_rticket", String.valueOf(nowMs));
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, String> e : q.entrySet()) {
+            if (out.length() > 0) out.append('&');
+            out.append(encodePython(e.getKey())).append('=').append(encodePython(e.getValue()));
+        }
+        return out.toString();
+    }
+
+    /** encodeURIComponent 后补转 !'()，星号保持原样（参考实现的编码规则）。 */
+    static String encodePython(String raw) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : raw.getBytes(StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            boolean keep = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+                    || c == '-' || c == '_' || c == '.' || c == '~' || c == '*';
+            if (keep) out.append((char) c);
+            else out.append('%').append(String.format("%02X", c));
+        }
+        return out.toString();
+    }
+
+    /** 参考实现的请求头集合：两跳共用，GET 带 x-tt-request-tag，POST 带 gzip 声明。 */
+    static Map<String, String> playbackHeaders(String versionCode, String query, byte[] body, long nowMs, boolean tab) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("User-Agent", VIDEO_UA.replace("71332", versionCode));
+        headers.put("Accept", "application/json; charset=utf-8,application/x-protobuf");
+        headers.put("sdk-version", "2");
+        headers.put("x-xs-from-web", "0");
+        headers.put("passport-sdk-version", tab ? "50561" : "5051452");
+        headers.put("x-ss-dp", "8662");
+        headers.putAll(PlaybackSignature.headers(query, body, nowMs / 1000L));
+        headers.put("x-tt-dt", "");
+        headers.put("x-tt-store-region", "cn");
+        headers.put("x-tt-store-region-src", "did");
+        if (tab) {
+            headers.put("x-tt-request-tag", "t=0;n=0");
+        } else {
+            headers.put("Content-Type", "application/json; charset=UTF-8");
+            headers.put("Content-Encoding", "gzip");
+        }
+        return headers;
+    }
+
+    /** video_tab 响应的模型嵌在 data.video_model_data[vid] 下；整理成 parseModel 认识的形态。 */
+    static Map<String, Object> wrapTabModel(String vid, String text) {
+        Map<String, Object> root = parsePlaybackResponse(text);
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("video_tab 未提供播放信息");
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        Map<String, Object> entry = null;
+        Map<String, Object> tabData = data == null ? null : Json.optObj(data.get("video_model_data"));
+        if (tabData != null) entry = Json.optObj(tabData.get(vid));
+        if (entry == null || entry.isEmpty()) {
+            entry = data == null ? null : Json.optObj(data.get(vid));
+        }
+        Map<String, Object> model = entry == null ? null : asObject(entry.get("video_model"));
+        if (model == null || model.isEmpty()) throw new IllegalStateException("video_tab 未返回播放模型");
+        Map<String, Object> wrapped = Json.obj();
+        Map<String, Object> row = Json.obj();
+        row.put("video_model", model);
+        Map<String, Object> episodes = Json.obj();
+        episodes.put(vid, row);
+        wrapped.put("code", 0L);
+        wrapped.put("data", episodes);
+        return wrapped;
+    }
+
     static Map<String, Object> parsePlaybackResponse(String text) {
         if (text == null || text.trim().isEmpty()) {
             throw new EmptyPlaybackResponseException();

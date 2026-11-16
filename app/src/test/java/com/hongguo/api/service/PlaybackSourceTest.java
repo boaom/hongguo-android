@@ -62,6 +62,10 @@ public class PlaybackSourceTest {
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
+        // 参考实现形态的两跳同样默认回空，测试不打真网络；需要它的用例自行注入。
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
     }
 
     @After public void restore() {
@@ -70,6 +74,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackPostForTest(null);
         AppSource.setPlaybackTabForTest(null);
         AppSource.setSinglePlaybackForTest(null);
+        AppSource.setPlayerSignaturePlaybackForTest(null);
     }
 
     // ==================== ttEncrypt 注册请求体 ====================
