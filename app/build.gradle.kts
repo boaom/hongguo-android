@@ -13,8 +13,8 @@ android {
         targetSdk = 36
         versionCode = providers.gradleProperty("appVersionCode").orElse("39").get().toInt()
         versionName = providers.gradleProperty("appVersionName").orElse("0.7.28").get()
-        buildConfigField("String", "UPDATE_REPOSITORY", "\"OOIUa/hongguo-android\"")
-        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/OOIUa/hongguo-android/releases/latest/download/update.json\"")
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"boaom/hongguo-android\"")
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/boaom/hongguo-android/releases/latest/download/update.json\"")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"
     }
     buildTypes {
