@@ -158,10 +158,20 @@ public class V5SignTest {
     }
 
     @Test public void medusaV5EnvelopeHasV5PrefixAndNonceTail() {
-        String url = "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1"
-                + "?aid=8662&device_id=7432109876543210987&_rticket=1800000000003";
+        // medusa 内部要跑 hashF13(v5)，所以 URL 的票号必须先落到 (iv & 15) == 12 ——
+        // 和 signPlayback 一样在 1024 个候选里搜，不能写死一个票号。
         byte[] body = new byte[]{31, (byte) 139, 8, 0, 1, 2, 3, 4};
         int ts = 1800000000;
+        byte[] bodyMd5 = PureSign.md5(body);
+        String url = null;
+        for (int offset = 0; offset < 1024 && url == null; offset++) {
+            String candidate = "https://api5-normal-sinfonlinea.fqnovel.com"
+                    + "/novel/player/multi_video_model/player/v1"
+                    + "?aid=8662&device_id=7432109876543210987&_rticket=" + (1800000000000L + offset);
+            byte[] q = PureSign.sm3(PureSign.queryOf(candidate).getBytes(StandardCharsets.UTF_8));
+            if (V5Sign.branchAccepts(q, bodyMd5, ts)) url = candidate;
+        }
+        assertNotNull("1024 个票号内应能找到分支 0", url);
         V5Sign.Identity identity = new V5Sign.Identity("7432109876543210987", "7.4.3.32",
                 "vivo_8662_64", "12", "PGT-AN10", "c3ludGhldGlj", 1800000000000L);
         byte[] raw = Base64.getDecoder().decode(V5Sign.medusaV5(url, body, ts, identity, new FixedRandom()));
