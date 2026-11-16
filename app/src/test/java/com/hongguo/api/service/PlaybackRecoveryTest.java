@@ -26,11 +26,20 @@ public class PlaybackRecoveryTest {
         AppSource.setPlaybackTabForTest((vid, identity) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+        // 本仓库在单集之前还有 v5 与 11-13 两跳：这里按「空响应」桩掉，让恢复逻辑走单集路径。
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
     }
 
     @After public void cleanup() {
         AppSource.setSinglePlaybackForTest(null); AppSource.setPlaybackTabForTest(null);
-        AppSource.setPlaybackPostForTest(null); PlaybackDevice.resetForTest(null);
+        AppSource.setPlaybackPostForTest(null);
+        AppSource.setMobileV5PlaybackForTest(null); AppSource.setPlayerSignaturePlaybackForTest(null);
+        PlaybackDevice.resetForTest(null);
     }
 
     @Test public void successfulIdentityIsReusedForAnotherEpisode() throws Exception {
