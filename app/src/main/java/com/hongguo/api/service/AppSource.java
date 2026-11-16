@@ -1,5 +1,6 @@
 package com.hongguo.api.service;
 
+import com.hongguo.api.core.PlaybackSignature;
 import com.hongguo.api.core.PlayerSign;
 import com.hongguo.api.core.PureSign;
 import com.hongguo.api.core.Spade;
@@ -977,7 +978,9 @@ public final class AppSource {
         biz.put("use_server_dns", false);
         biz.put("video_platform", 1024);
         Map<String, Object> mixed = Json.obj();
-        mixed.put("1004", Json.arr(vid));
+        List<Object> mixedIds = Json.arr();
+        mixedIds.add(vid);
+        mixed.put("1004", mixedIds);
         Map<String, Object> out = Json.obj();
         out.put("biz_param", biz);
         out.put("mixed_video_id_map", mixed);
