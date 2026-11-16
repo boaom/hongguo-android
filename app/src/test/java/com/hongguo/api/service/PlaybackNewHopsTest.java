@@ -227,33 +227,44 @@ public class PlaybackNewHopsTest {
         assertEquals(2, registrations.get()); // 入口 1 次 + tab 跳内 1 次；关键是没出现第三次（POST 的换身份）
     }
 
-    /** v5 空响应不得清掉缓存身份：下一次成功取流仍复用同一身份（全程只注册一次）。
+    /** v5 空响应不得清掉缓存身份：之后的成功取流仍复用同一身份（全程只注册一次）。
      *
-     * <p>直接钉住「v5 空响应不清理 PLAYBACK_IDENTITY」这一决策：若有人在 v5 空响应的 catch 里
-     * 加入清除，第三次 fetch 会重新注册身份，registrations 由 1 变 2。
+     * <p>可证伪性设计：第 2 次 fetch 的预算在 v5 一跳内耗尽（跳内等待超过预算），因此 v5 空响应之后
+     * 单集路径与旧路由都不会执行——不会有「成功路径把同一身份 CAS 写回缓存」把变异遮蔽掉。
+     * 于是把 {@code PLAYBACK_IDENTITY.compareAndSet(identity, null)} 加回 v5 空响应处时，
+     * 第 3 次 fetch 会重新注册身份，registrations 由 1 变 2，本用例失败。
      */
     @Test public void v5EmptyKeepsCachedIdentityForNextFetch() throws Exception {
         com.hongguo.api.service.Stream.VideoTrack track = new com.hongguo.api.service.Stream.VideoTrack();
         track.url = "https://v1.qznovelvod.com/new-hops-keep-identity.mp4";
 
         // 注意：测试缝 setSinglePlaybackForTest 会顺带清空 PLAYBACK_IDENTITY（AppSource.java:386），
-        // 因此它必须在第 1 次 fetch 之前调用，否则会清掉刚写入的缓存身份、让本用例失真。
+        // 因此它必须在第 1 次 fetch 之前调用。
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
 
         // 第 1 次：v5 成功 → 写入缓存身份（注册 1 次）
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
         assertSame(track, AppSource.fetch("1", "auto"));
 
-        // 第 2 次：v5 空响应、11-13 两跳空响应，由单集路径成功兜底（此时不得清缓存身份）
+        // 第 2 次：v5 空响应并在跳内耗尽 1s 预算 → 单集与旧路由都不执行 → 本次 fetch 失败。
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            try {
+                Thread.sleep(1200L);
+            } catch (InterruptedException cancelled) {
+                Thread.currentThread().interrupt();
+            }
             throw new AppSource.EmptyPlaybackResponseException();
         });
         AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
-        assertSame(track, AppSource.fetch("2", "auto"));
+        try {
+            AppSource.fetch("2", "auto", 1000);
+            fail("预算耗尽且全部空响应时应失败");
+        } catch (AppSource.EmptyPlaybackResponseException expected) {
+        }
 
-        // 第 3 次：v5 再成功；若上一步清过身份，这里会再注册
+        // 第 3 次：v5 再成功；若第 2 次在 v5 空响应处清过身份，这里会重新注册
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
         assertSame(track, AppSource.fetch("3", "auto"));
 

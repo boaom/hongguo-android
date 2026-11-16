@@ -154,7 +154,8 @@ public final class AppSource {
             // 上游不变量用例 PlaybackRecoveryTest.staleFailureCannotEvictAnotherRequestsSuccessfulIdentity
             // 把两跳都桩成空响应，因此每次 fetch 都会走到本分支：一旦在此清身份，它的注册数断言就会失败
             // （run 43921055405 实测如此）。本仓库另有直接覆盖本决策的用例：
-            // PlaybackNewHopsTest.v5EmptyKeepsCachedIdentityForNextFetch。
+            // PlaybackNewHopsTest.v5EmptyKeepsCachedIdentityForNextFetch——其第 2 次 fetch 在 v5 跳内
+            // 耗尽预算，单集与旧路由都不会执行，因此没有成功路径把身份 CAS 写回来遮蔽变异。
         } catch (PlaybackRejectedException e) {
             // 业务风控拒绝（1003/101144/110001/110002）：换端点换身份都解决不了，立刻终止整条链，
             // 否则 11-13 两跳与旧路径只会继续用新身份撞风控。
