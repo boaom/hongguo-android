@@ -145,12 +145,21 @@ public final class AppSource {
         } catch (InterruptedIOException e) {
             throw e;
         } catch (EmptyPlaybackResponseException e) {
-            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径。
+            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径；同时清掉已失效的缓存身份，
+            // 避免失效身份跨 fetch 继续被复用（与单集路径的 compareAndSet(identity, null) 一致）。
+            PLAYBACK_IDENTITY.compareAndSet(identity, null);
+        } catch (PlaybackRejectedException e) {
+            // 业务风控拒绝（1003/101144/110001/110002）：换端点换身份都解决不了，立刻终止整条链，
+            // 否则 11-13 两跳与旧路径只会继续用新身份撞风控。
+            PLAYBACK_IDENTITY.compareAndSet(identity, null);
+            throw e;
         } catch (PlaybackHttpException | IOException e) {
             if (Thread.currentThread().isInterrupted()) throw e;
+            stopIfPlaybackRejected(e, identity);
             failure = e;
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) throw e;
+            stopIfPlaybackRejected(e, identity);
             modelFailure = e;
         }
         // 2026-11-13 上游把播放形态又推进了一版：先按参考实现（hongguo-web f662f0b/1b00f06）的
@@ -162,11 +171,15 @@ public final class AppSource {
             throw e;
         } catch (EmptyPlaybackResponseException e) {
             // 与旧路径的空响应同类，交给下面的路径。
+        } catch (PlaybackRejectedException e) {
+            throw e;
         } catch (PlaybackHttpException | IOException e) {
             if (Thread.currentThread().isInterrupted()) throw e;
+            stopIfPlaybackRejected(e, identity);
             failure = e;
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) throw e;
+            stopIfPlaybackRejected(e, identity);
             modelFailure = e;
         }
         // LiuWQ0809/hongguo-android 89169c0: recover empty single-endpoint replies first.
@@ -408,7 +421,12 @@ public final class AppSource {
         playbackHttp = http == null ? Http::send : http;
     }
 
-    /** 两跳/单集发出签名请求前统一走这里：预算耗尽抛 IOException，线程已取消抛 InterruptedIOException。 */
+    /**
+     * 两跳/单集发出签名请求前统一走这里：预算耗尽抛 IOException，线程已取消抛 InterruptedIOException。
+     *
+     * <p>预算只约束「是否开始新的工作」（注册身份、签名、发起下一跳）：请求一旦发出，其成果不会被
+     * 预算丢弃——晚到但成功的响应仍会正常返回给用户（与上游「预算不强行截断已发出的请求」一致）。
+     */
     private static Http.Resp sendPlaybackRequest(Http.Req req, long started, long budgetMs) throws IOException {
         checkPlaybackCancellation();
         if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
@@ -1239,6 +1257,8 @@ public final class AppSource {
             if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
             SignedPlayback tab = tabSignatureRequest(identity, vid, System.currentTimeMillis());
             Http.Resp res = sendSigned(tab.url, tab.headers, null, "GET", started, budgetMs);
+            // 403/429 是明确拒绝：不换新身份重打 POST，直接终止整条链（其余非 200 仍走 POST，保留兜底能力）。
+            checkPlaybackRejection(res.status);
             if (res.status == 200 && res.body != null && res.body.length > 0 && !res.text().trim().isEmpty()) {
                 checkPlaybackCancellation();
                 Stream.VideoTrack track = parseModel(vid, wrapTabModel(vid, res.text()), quality);

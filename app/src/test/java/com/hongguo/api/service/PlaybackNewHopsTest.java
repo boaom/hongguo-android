@@ -164,6 +164,85 @@ public class PlaybackNewHopsTest {
         assertEquals(1, requests.get()); // tab GET 发出后取消，POST 不得再发
     }
 
+    // ==================== 明确拒绝即停（复核 findings #1） ====================
+
+    /** v5 收到 HTTP 403：整条链立即终止，不再走 11-13 两跳，也不回退单集。 */
+    @Test public void v5Http403StopsTheChain() throws Exception {
+        AppSource.setPlaybackHttpForTest(req -> {
+            requests.incrementAndGet();
+            return HttpForTest.empty(403);
+        });
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
+            throw new AssertionError("403 之后不应再走 11-13 两跳");
+        });
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            throw new AssertionError("403 之后不应再回退单集路径");
+        });
+        try {
+            AppSource.fetch("1", "auto");
+            fail("HTTP 403 应作为明确拒绝直接终止");
+        } catch (AppSource.PlaybackRejectedException expected) {
+        }
+        assertEquals(1, requests.get());
+    }
+
+    /** v5 返回业务风控码（101144）：同样立即终止，不换身份重试。 */
+    @Test public void v5BusinessRejectionStopsTheChain() throws Exception {
+        AppSource.setPlaybackHttpForTest(req -> {
+            requests.incrementAndGet();
+            return HttpForTest.resp(200, "{\"code\":101144,\"data\":{}}");
+        });
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
+            throw new AssertionError("业务拒绝之后不应再走 11-13 两跳");
+        });
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            throw new AssertionError("业务拒绝之后不应再回退单集路径");
+        });
+        try {
+            AppSource.fetch("1", "auto");
+            fail("业务风控码应作为明确拒绝直接终止");
+        } catch (AppSource.PlaybackRejectedException expected) {
+        }
+        assertEquals(1, requests.get());
+    }
+
+    /** 11-13 两跳的 tab GET 收到 403：不再换新身份重打 POST，也不再回退。 */
+    @Test public void tabGet403StopsBeforeAnotherIdentity() throws Exception {
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setPlaybackHttpForTest(req -> {
+            requests.incrementAndGet();
+            return HttpForTest.empty(403);
+        });
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
+            throw new AssertionError("tab GET 403 之后不应再回退单集路径");
+        });
+        try {
+            AppSource.fetch("1", "auto");
+            fail("tab GET 403 应作为明确拒绝直接终止");
+        } catch (AppSource.PlaybackRejectedException expected) {
+        }
+        assertEquals(1, requests.get());      // 只有那一次被拒的 GET，没有第二次 POST
+        assertEquals(1, registrations.get()); // 只有入口那一次注册，没有再换身份
+    }
+
+    /** 预算语义：只约束「是否开始新的工作」，已发出请求的成果不因预算耗尽被丢弃。 */
+    @Test public void lateSuccessIsNotDiscardedByBudget() throws Exception {
+        AppSource.setPlaybackHttpForTest(req -> {
+            requests.incrementAndGet();
+            try {
+                Thread.sleep(1200L); // 远超 1s 预算
+            } catch (InterruptedException cancelled) {
+                Thread.currentThread().interrupt();
+            }
+            return HttpForTest.resp(200, v5Body("1"));
+        });
+        com.hongguo.api.service.Stream.VideoTrack t = AppSource.fetch("1", "auto", 1000);
+        assertNotNull("已发出的请求正常返回时，不应因预算耗尽被丢弃", t);
+        assertEquals("https://v1.qznovelvod.com/new-hops.mp4", t.url);
+    }
+
     /** 合成 v5 响应正文（flat 形态，parseMobileV5Response 认识的形状）。 */
     private static String v5Body(String vid) {
         return "{\"code\":0,\"data\":{\"" + vid + "\":{\"video_model\":" + modelJson() + "}}}";
