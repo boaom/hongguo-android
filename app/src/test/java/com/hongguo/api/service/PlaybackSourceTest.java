@@ -62,11 +62,11 @@ public class PlaybackSourceTest {
         // 单集桩返回 null（上游语义）：不触发 5 次重试与换身份，旧路径用例保持原节奏。
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> null);
         // 参考实现形态的两跳同样默认回空，测试不打真网络；需要它的用例自行注入。
-        AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
         // v5 形态（2026-11-16）默认也回空，避免单测打真网络；需要它的用例自行注入。
-        AppSource.setMobileV5PlaybackForTest((vid, quality, identity) -> {
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
     }

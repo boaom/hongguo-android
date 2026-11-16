@@ -654,8 +654,10 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
                 } catch (error: Exception) {
                     // 上游偶发空响应/注册失败可自愈（AppSource 本身就有换身份回退），这里再兜一层自动重试，
                     // 免得上游抖动窗口里每次都要用户手点「重新播放」。换集/离开播放页（版本变化）立即停。
+                    // 明确拒绝（PlaybackRejectedException / HTTP 403/429）不重试：AppSource 已实现
+                    // 「拒绝即停」，外层重试只会拖慢错误展示并加重上游风控，立即展示错误。
                     attempt++
-                    if (version != mediaVersion || attempt > AUTO_PLAY_RETRIES) {
+                    if (version != mediaVersion || !retryablePlaybackFailure(error) || attempt > AUTO_PLAY_RETRIES) {
                         if (version == mediaVersion) mutableState.update {
                             it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
                         }

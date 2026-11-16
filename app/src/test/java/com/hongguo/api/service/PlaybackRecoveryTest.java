@@ -27,10 +27,10 @@ public class PlaybackRecoveryTest {
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
         // 本仓库在单集之前还有 v5 与 11-13 两跳：这里按「空响应」桩掉，让恢复逻辑走单集路径。
-        AppSource.setMobileV5PlaybackForTest((vid, quality, identity) -> {
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
-        AppSource.setPlayerSignaturePlaybackForTest((vid, quality) -> {
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
     }

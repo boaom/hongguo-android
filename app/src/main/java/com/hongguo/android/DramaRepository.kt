@@ -205,6 +205,27 @@ class DramaRepository {
     }
 }
 
+/**
+ * 播放准备失败是否值得自动重试（纯函数，供 HongguoViewModel 的自动重试与单测使用）。
+ *
+ * 明确拒绝不值得重试：AppSource 已经把「业务/HTTP 拒绝即停」实现好了，外层再试只会
+ * 拖慢错误展示并加重上游风控。命中 [AppSource.PlaybackRejectedException]，或
+ * [AppSource.PlaybackHttpException] 状态 403/429（沿 cause 链判断）时返回 false；
+ * 其余（空响应、SocketTimeout、注册失败等偶发抖动）返回 true，保持「网络抖动，自动重试」。
+ */
+fun retryablePlaybackFailure(error: Throwable): Boolean {
+    var current: Throwable? = error
+    var hops = 0
+    while (current != null && hops < 8) {
+        if (current is com.hongguo.api.service.AppSource.PlaybackRejectedException) return false
+        if (current is com.hongguo.api.service.AppSource.PlaybackHttpException &&
+            (current.status == 403 || current.status == 429)) return false
+        current = current.cause
+        hops++
+    }
+    return true
+}
+
 /** Never expose provider response bodies, signed URLs or device identifiers in UI. */
 fun readableFailure(error: Throwable, action: String): String {
     val chain = generateSequence(error) { it.cause }.take(8).toList()
