@@ -131,9 +131,10 @@ public final class V5Sign {
         byte[] bodyMd5 = body != null && body.length > 0 ? PureSign.md5(body) : new byte[16];
         for (int offset = 0; offset < TICKET_SEARCH_LIMIT; offset++) {
             long ticket = ticketStart + offset;
+            // encode() 返回的就是 query 原文（不含 '?'），不能过 PureSign.queryOf ——
+            // 那个方法按 '?' 切分，纯 query 会被切成空串，导致 1024 轮全部判为「无匹配」。
             String candidate = encode(values, ticket);
-            byte[] querySm3 = PureSign.sm3(
-                    PureSign.queryOf(candidate).getBytes(StandardCharsets.UTF_8));
+            byte[] querySm3 = PureSign.sm3(candidate.getBytes(StandardCharsets.UTF_8));
             if (!branchAccepts(querySm3, bodyMd5, (int) ts)) continue;
             query = candidate;
             break;
