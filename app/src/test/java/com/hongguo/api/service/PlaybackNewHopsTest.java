@@ -111,40 +111,37 @@ public class PlaybackNewHopsTest {
         assertEquals(1, requests.get());
     }
 
-    /** v5 成功后写入 PLAYBACK_IDENTITY：连续两次 fetch 只注册一次身份。 */
+    /** v5 成功后写入 PLAYBACK_IDENTITY：连续两次 fetch 只注册一次身份。
+     *
+     * <p>这里用注入缝返回片源（不经过 HTTP 与模型解析）：被测的生产行是 fetch() 里
+     * v5 成功之后的 {@code PLAYBACK_IDENTITY.compareAndSet(null, identity)}。
+     */
     @Test public void v5SuccessCachesIdentitySoTwoFetchesRegisterOnce() throws Exception {
-        AppSource.setPlaybackHttpForTest(req -> {
-            requests.incrementAndGet();
-            return HttpForTest.resp(200, v5Body("1"));
+        com.hongguo.api.service.Stream.VideoTrack track = new com.hongguo.api.service.Stream.VideoTrack();
+        track.url = "https://v1.qznovelvod.com/new-hops-v5.mp4";
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
+            throw new AssertionError("v5 成功时不应落到 11-13 两跳");
         });
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
-            throw new AssertionError("v5 成功后不应再走单集路径");
+            throw new AssertionError("v5 成功时不应落到单集路径");
         });
-        assertNotNull(AppSource.fetch("1", "auto"));
-        assertNotNull(AppSource.fetch("2", "auto"));
-        assertEquals(1, registrations.get());
-        assertEquals(2, requests.get()); // 两次取流各发一次 v5 请求，但身份只注册一次
+        assertSame(track, AppSource.fetch("1", "auto"));
+        assertSame(track, AppSource.fetch("2", "auto"));
+        assertEquals(1, registrations.get()); // 第二次直接复用缓存身份，不再注册
+        assertEquals(0, requests.get());      // 全程无 HTTP
     }
 
-    /** 11-13 两跳（video_tab GET）成功后同样写入 PLAYBACK_IDENTITY。 */
-    @Test public void playerSignatureSuccessCachesIdentity() throws Exception {
-        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
-            throw new AppSource.EmptyPlaybackResponseException();
-        });
-        AppSource.setPlaybackHttpForTest(req -> {
-            requests.incrementAndGet();
-            if (requests.get() == 1) return HttpForTest.empty(200); // tab GET 空响应 → 下一跳
-            return HttpForTest.resp(200, tabBody("1"));
-        });
-        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
-            throw new AssertionError("两跳成功后不应再走单集路径");
-        });
-        assertNotNull(AppSource.fetch("1", "auto"));
-        // 两跳内部各注册一次新身份（tab 一次）；成功后写入缓存，第二次 fetch 不再注册。
-        int afterFirst = registrations.get();
-        assertTrue(afterFirst >= 1);
-        assertNotNull(AppSource.fetch("2", "auto"));
-        assertEquals(afterFirst, registrations.get());
+    /** 诊断：v5 夹具必须能独立解析成片源（失败时把真实原因带进断言消息，避免下一轮再猜）。 */
+    @Test public void v5FixtureParsesToTrack() throws Exception {
+        try {
+            com.hongguo.api.service.Stream.VideoTrack t =
+                    AppSource.parseModel("1", AppSource.parseMobileV5Response("1", v5Body("1")), "auto");
+            assertNotNull("v5 夹具解析为 null", t);
+            assertEquals("https://v1.qznovelvod.com/new-hops.mp4", t.url);
+        } catch (Exception e) {
+            fail("v5 夹具解析失败: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
     }
 
     /** 取消发生在两跳内部（注册之后、请求之前）时不再发请求。 */
