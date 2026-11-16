@@ -181,10 +181,12 @@ public class V5SignTest {
         for (int i = 0; i < expected.length; i++) expected[i] ^= tsBytes[i & 3];
         assertEquals(V5Sign.MAGIC.length + 4, expected.length);
         assertEquals(Crypto.hex(expected), Crypto.hex(java.util.Arrays.copyOfRange(raw, 0, expected.length)));
-        // 尾部四个字节是 nonce 的低 16 位 + 0x00 0x01
-        assertEquals(0, raw[raw.length - 2]);
-        assertEquals(1, raw[raw.length - 1]);
-        assertTrue("信封加 AES 密文应超过 248 字节", raw.length > 248);
+        // prefix 之后紧跟 4 字节 nonce 标记：nonce 低字节、高字节、0x00、0x01（上游 Signer.medusaV5）。
+        int base = V5Sign.MAGIC.length + 4;
+        assertEquals(0, raw[base + 2] & 0xFF);
+        assertEquals(1, raw[base + 3] & 0xFF);
+        // 标记之后是 AesV3 的输出：[key 末字节] + 与 packed 等长的密文（packed 必然 ≥ 248 字节）。
+        assertTrue("信封加 AES 密文应超过 248 字节", raw.length > base + 4 + 249);
     }
 
     @Test public void heliosUsesV5License() {
