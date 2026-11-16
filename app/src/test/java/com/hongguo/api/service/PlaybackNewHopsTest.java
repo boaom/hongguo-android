@@ -227,6 +227,37 @@ public class PlaybackNewHopsTest {
         assertEquals(2, registrations.get()); // 入口 1 次 + tab 跳内 1 次；关键是没出现第三次（POST 的换身份）
     }
 
+    /** v5 空响应不得清掉缓存身份：下一次成功取流仍复用同一身份（全程只注册一次）。
+     *
+     * <p>直接钉住「v5 空响应不清理 PLAYBACK_IDENTITY」这一决策：若有人在 v5 空响应的 catch 里
+     * 加入清除，第三次 fetch 会重新注册身份，registrations 由 1 变 2。
+     */
+    @Test public void v5EmptyKeepsCachedIdentityForNextFetch() throws Exception {
+        com.hongguo.api.service.Stream.VideoTrack track = new com.hongguo.api.service.Stream.VideoTrack();
+        track.url = "https://v1.qznovelvod.com/new-hops-keep-identity.mp4";
+
+        // 第 1 次：v5 成功 → 写入缓存身份（注册 1 次）
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
+        assertSame(track, AppSource.fetch("1", "auto"));
+
+        // 第 2 次：v5 空响应、11-13 两跳空响应，由单集路径成功兜底（此时不得清缓存身份）
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setPlayerSignaturePlaybackForTest((vid, quality, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+        assertSame(track, AppSource.fetch("2", "auto"));
+
+        // 第 3 次：v5 再成功；若上一步清过身份，这里会再注册
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
+        assertSame(track, AppSource.fetch("3", "auto"));
+
+        assertEquals(1, registrations.get()); // 三次 fetch 只注册一次身份
+        assertEquals(0, requests.get());      // 全程无 HTTP
+    }
+
     /** 预算语义：只约束「是否开始新的工作」，已发出请求的成果不因预算耗尽被丢弃。 */
     @Test public void lateSuccessIsNotDiscardedByBudget() throws Exception {
         AppSource.setPlaybackHttpForTest(req -> {

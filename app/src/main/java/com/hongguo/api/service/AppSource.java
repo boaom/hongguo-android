@@ -149,8 +149,12 @@ public final class AppSource {
             //
             // 这里刻意不清缓存身份：v5 空响应是上游当前常态（换身份无效），清掉会让每次 fetch 都
             // 重新注册，直接废掉「复用成功的匿名身份」。清理只发生在「确实用该身份试过并失败」的
-            // 单集路径与旧路由，且都是 CAS——某一跳的失败不得驱逐别的请求已成功的身份
-            // （PlaybackRecoveryTest.staleFailureCannotEvictAnotherRequestsSuccessfulIdentity 钉住这条）。
+            // 单集路径与旧路由，且都是 CAS——某一跳的失败不得驱逐别的请求已成功的身份。
+            //
+            // 上游不变量用例 PlaybackRecoveryTest.staleFailureCannotEvictAnotherRequestsSuccessfulIdentity
+            // 把两跳都桩成空响应，因此每次 fetch 都会走到本分支：一旦在此清身份，它的注册数断言就会失败
+            // （run 43921055405 实测如此）。本仓库另有直接覆盖本决策的用例：
+            // PlaybackNewHopsTest.v5EmptyKeepsCachedIdentityForNextFetch。
         } catch (PlaybackRejectedException e) {
             // 业务风控拒绝（1003/101144/110001/110002）：换端点换身份都解决不了，立刻终止整条链，
             // 否则 11-13 两跳与旧路径只会继续用新身份撞风控。
