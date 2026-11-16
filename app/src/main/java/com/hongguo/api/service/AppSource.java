@@ -648,10 +648,17 @@ public final class AppSource {
     public static final class SignedPlayback {
         public final String url;
         public final Map<String, String> headers;
+        /** POST 的压缩正文；GET 为 null。 */
+        public final byte[] body;
 
         SignedPlayback(String url, Map<String, String> headers) {
+            this(url, headers, null);
+        }
+
+        SignedPlayback(String url, Map<String, String> headers, byte[] body) {
             this.url = url;
             this.headers = headers;
+            this.body = body;
         }
     }
 
@@ -918,8 +925,8 @@ public final class AppSource {
             PlaybackDevice.Identity identity = PlaybackDevice.fresh();
             SignedPlayback tab = tabSignatureRequest(identity, vid, System.currentTimeMillis());
             Http.Resp res = sendSigned(tab.url, tab.headers, null, "GET");
-            if (res.status == 200 && res.text != null && !res.text.trim().isEmpty()) {
-                return parseModel(vid, wrapTabModel(vid, res.text), quality);
+            if (res.status == 200 && res.body != null && res.body.length > 0 && !res.text().trim().isEmpty()) {
+                return parseModel(vid, wrapTabModel(vid, res.text()), quality);
             }
         }
         {
@@ -927,8 +934,8 @@ public final class AppSource {
             SignedPlayback post = postSignatureRequest(identity, vid, System.currentTimeMillis());
             Http.Resp res = sendSigned(post.url, post.headers, post.body, "POST");
             if (res.status != 200) throw new PlaybackHttpException(res.status);
-            if (res.text == null || res.text.trim().isEmpty()) throw new EmptyPlaybackResponseException();
-            return parseModel(vid, parsePlaybackResponse(res.text), quality);
+            if (res.body == null || res.body.length == 0) throw new EmptyPlaybackResponseException();
+            return parseModel(vid, parsePlaybackResponse(res.text()), quality);
         }
     }
 
