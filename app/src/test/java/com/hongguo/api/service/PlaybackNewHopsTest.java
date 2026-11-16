@@ -180,7 +180,7 @@ public class PlaybackNewHopsTest {
     /** 最小可用片源模型：一个 h264 档、带合法 spade（PlaybackSourceTest 的自检真值）。 */
     private static String modelJson() {
         String spade = java.util.Base64.getEncoder().encodeToString(com.hongguo.api.util.Crypto.unhex(
-                "93bc1df253ba1bf761b19c448b806f64d810afc45b715fe5eb925f26cbf12f541ba098282"));
+                "93bc1df253ba1bf7618b19c448b806f64d810afc45b715fe5eb925f26cbf12f541ba098282"));
         return "{\"video_id\":\"v-test\",\"video_list\":[{\"codec_type\":\"h264\","
                 + "\"definition\":\"720p\",\"vwidth\":1280,\"vheight\":720,"
                 + "\"main_url\":\"https://v1.qznovelvod.com/new-hops.mp4\","
