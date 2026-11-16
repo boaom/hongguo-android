@@ -144,6 +144,7 @@ Local changes: the single model goes through the same `parseModel` rules (ByteVC
 
 参考 [sunnysky123/hongguo-web `1b00f06`](https://github.com/sunnysky123/hongguo-web/commit/1b00f06)（2026-11-13，MIT）：`cell/change` 不依赖 offset，而以 `filter_ids` 排除已展示作品。本地 Java 实现保留有界请求、取消检查、唯一 ID 累积和绝对榜单序号。
 
+<<<<<<< HEAD
 ### v5 playback signing (2026-11-16)
 
 From 2026-11-16 the player endpoint rejects the former v3 Medusa request with an empty HTTP 200
@@ -171,3 +172,10 @@ upstream's TV client the hop does not fork a separate identity per attempt: it r
 identity the caller already registered. The synthetic digest and carrier vectors from
 `kotlin-tv/core/src/test/resources` are ported into `V5SignTest` so CI checks the digest and AES
 paths without an SDK or a captured session.
+=======
+## 播放空响应恢复与匿名身份复用（2026-11-16）
+
+参考 [LiuWQ0809/hongguo-android `89169c0`](https://github.com/LiuWQ0809/hongguo-android/commit/89169c0ddfdc1fff3fbdf6a097df5802881375e9) 及其前置 `409a18d`、`aa38908`、`16d1495`（GPL-3.0-only）：优先对新版单集接口的空响应有限换新身份恢复、复用已成功取流的匿名身份、HTTP 403/429 停止后续请求。
+
+本地保留原有兼容路径顺序、模型错误优先级、注册失败冷却和取消语义；恢复与旧路径共用从初次注册前开始的 20 秒请求启动预算，单次播放 HTTP 请求仍受 8 秒超时约束，预算不强行截断已发出的请求。成功身份仅保存在进程内，按具体身份清除，旧请求不覆盖或清除其他请求的新身份。账号设备与推荐设备不参与此缓存；已识别的登录/风控业务拒绝亦停止恢复。
+>>>>>>> upstream-o/main
