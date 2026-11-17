@@ -11,7 +11,7 @@ import org.junit.Test
 class AppThemeStyleTest {
     @Test
     fun persistedKeysAreStableAndUnknownFallsBackToWarm() {
-        assertEquals(listOf("warm", "immersive", "cards", "playbill", "gazette"), AppThemeStyle.entries.map { it.key })
+        assertEquals(listOf("warm", "immersive", "cards", "playbill", "gazette", "rail"), AppThemeStyle.entries.map { it.key })
         AppThemeStyle.entries.forEach { assertEquals(it, AppThemeStyle.fromKey(it.key)) }
         assertEquals(AppThemeStyle.WARM, AppThemeStyle.fromKey(null))
         assertEquals(AppThemeStyle.WARM, AppThemeStyle.fromKey("removed-style"))
@@ -22,6 +22,36 @@ class AppThemeStyleTest {
         AppThemeStyle.entries.forEach { style ->
             assertTrue(style.palette(dark = true).isDark)
             assertFalse(style.palette(dark = false).isDark)
+        }
+    }
+
+    @Test
+    fun railKeepsItsColdNeutralGroundAndOneRed() {
+        val light = AppThemeStyle.RAIL.palette(dark = false)
+        assertEquals(Color(0xFFF3F4F6), light.canvas)
+        assertEquals(Color(0xFF16181B), light.ink)
+        assertEquals(Color(0xFF63676D), light.muted)
+        assertEquals(Color(0xFFC8102E), light.accent)
+        val dark = AppThemeStyle.RAIL.palette(dark = true)
+        assertEquals(Color(0xFF0F1113), dark.canvas)
+        assertEquals(Color(0xFFF3F4F6), dark.ink)
+        assertEquals(Color(0xFFD81E32), dark.accent)
+    }
+
+    /** 这套主题最弱的文本组合也要过 HIG 的 4.5:1（accessibility.md › Vision）。 */
+    @Test
+    fun railTextMeetsContrastFloor() {
+        fun ratio(a: Color, b: Color): Float {
+            val la = a.luminance()
+            val lb = b.luminance()
+            return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+        }
+        listOf(false, true).forEach { dark ->
+            val p = AppThemeStyle.RAIL.palette(dark = dark)
+            assertTrue("ink on canvas ($dark)", ratio(p.ink, p.canvas) >= 4.5f)
+            assertTrue("muted on canvas ($dark)", ratio(p.muted, p.canvas) >= 4.5f)
+            assertTrue("muted on card ($dark)", ratio(p.muted, p.card) >= 4.5f)
+            assertTrue("onAccent on accent ($dark)", ratio(p.onAccent, p.accent) >= 4.5f)
         }
     }
 

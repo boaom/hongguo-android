@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>红果 · 第六套主题 六格候选</title>
+<style>
+  :root { --s: 0.62; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background:#141414; color:#e8e8e8; font-family: -apple-system, "PingFang SC", "Noto Sans CJK SC", sans-serif; padding: 36px 40px 60px; }
+  h1 { font-size: 19px; font-weight: 600; letter-spacing: .02em; margin-bottom: 4px; }
+  .sub { font-size: 12.5px; color:#8d8d8d; margin-bottom: 26px; line-height: 1.6; }
+  .grid { display:grid; grid-template-columns: repeat(3, calc(390px * var(--s))); gap: 30px 26px; }
+  .slot { width: calc(390px * var(--s)); }
+  .cap { font-size: 11px; color:#9a9a9a; margin-bottom: 8px; display:flex; justify-content:space-between; }
+  .cap b { color:#e8e8e8; font-weight:600; }
+  .phone { width:390px; height:844px; transform: scale(var(--s)); transform-origin: top left; overflow:hidden; position:relative; }
+  .stage { width: calc(390px * var(--s)); height: calc(844px * var(--s)); overflow:hidden; border-radius: 10px; }
+
+  /* ───── A1 排片板 · 墨蓝点阵 ───── */
+  .a1 { background:#0E1620; color:#C6D2E0; font-family: ui-monospace, "SF Mono", Menlo, monospace; padding: 18px 16px 0; }
+  .a1 .brand { display:flex; align-items:baseline; gap:8px; }
+  .a1 .brand b { color:#FFB020; font-size:19px; letter-spacing:.14em; }
+  .a1 .brand span { font-size:10px; color:#5E7189; letter-spacing:.16em; }
+  .a1 .date { margin-top:12px; display:flex; gap:10px; font-size:10px; color:#5E7189; border-bottom:1px solid #1E2C3C; padding-bottom:8px; }
+  .a1 .date i { font-style:normal; color:#FFB020; }
+  .a1 .rowlabel { margin-top:16px; font-size:9.5px; letter-spacing:.2em; color:#4C5F76; }
+  .a1 .slotline { display:flex; gap:10px; margin-top:8px; padding:9px 0; border-bottom:1px dotted #22303F; }
+  .a1 .t { width:44px; font-size:11px; color:#FFB020; padding-top:2px; }
+  .a1 .th { width:44px; height:44px; border-radius:3px; overflow:hidden; flex:none; }
+  .a1 .th img { width:100%; height:100%; object-fit:cover; filter:saturate(.82) contrast(1.05); }
+  .a1 .meta { flex:1; min-width:0; }
+  .a1 .meta b { display:block; font-size:12px; color:#DCE6F0; font-weight:600; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .a1 .meta span { font-size:10px; color:#66798F; }
+  .a1 .now { font-size:9px; color:#0E1620; background:#FFB020; padding:1px 5px; border-radius:2px; margin-left:6px; }
+  .a1 .rundown { margin-top:14px; }
+  .a1 .rundown div { display:flex; justify-content:space-between; font-size:10.5px; color:#8DA0B5; padding:4.5px 0; border-bottom:1px dotted #1B2734; }
+  .a1 .rundown div em { font-style:normal; color:#4C5F76; font-size:9.5px; }
+  .a1 .nav { position:absolute; left:0; right:0; bottom:0; height:64px; border-top:1px solid #1E2C3C; display:flex; background:#0B121A; }
+  .a1 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10px; color:#4C5F76; font-style:normal; letter-spacing:.08em; }
+  .a1 .nav i.on { color:#FFB020; box-shadow: inset 0 2px 0 #FFB020; }
+
+  /* ───── A2 黑板粉笔排片 ───── */
+  .a2 { background:#1B2A22; color:#EDEAE0; padding: 20px 18px 0; }
+  .a2::after { content:""; position:absolute; inset:0; background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size: 3px 3px; pointer-events:none; }
+  .a2 .hd { font-size:10px; letter-spacing:.3em; color:#8FA396; }
+  .a2 h2 { font-size:26px; font-weight:400; letter-spacing:.02em; margin-top:6px; font-family: "Songti SC", serif; }
+  .a2 .line { height:2px; background:#EDEAE0; margin:10px 0 4px; opacity:.5; }
+  .a2 .show { padding:14px 0; border-bottom:1px dashed rgba(237,234,224,.28); display:flex; gap:12px; }
+  .a2 .tm { width:56px; flex:none; }
+  .a2 .tm b { display:block; font-size:19px; font-family: ui-monospace, monospace; color:#F2D06B; letter-spacing:-.02em; }
+  .a2 .tm span { font-size:9px; color:#8FA396; }
+  .a2 .body { flex:1; min-width:0; }
+  .a2 .body b { font-size:14px; font-weight:600; display:block; line-height:1.4; }
+  .a2 .body p { font-size:10.5px; color:#9FB2A6; margin-top:3px; }
+  .a2 .tag { display:inline-block; font-size:9px; border:1px solid rgba(242,208,107,.5); color:#F2D06B; padding:0 5px; margin-top:5px; }
+  .a2 .th { width:52px; height:66px; flex:none; border:1px solid rgba(237,234,224,.35); overflow:hidden; }
+  .a2 .th img { width:100%; height:100%; object-fit:cover; filter:grayscale(.35) sepia(.12); }
+  .a2 .nav { position:absolute; left:0; right:0; bottom:0; height:60px; border-top:2px solid rgba(237,234,224,.35); display:flex; background:#1B2A22; }
+  .a2 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#7E9187; font-style:normal; }
+  .a2 .nav i.on { color:#F2D06B; }
+
+  /* ───── B1 票根 · 冷白品红 ───── */
+  .b1 { background:#F2F0EC; color:#17161A; padding:18px 16px 0; }
+  .b1 .top { display:flex; justify-content:space-between; align-items:baseline; }
+  .b1 .top b { font-size:17px; letter-spacing:.02em; }
+  .b1 .top span { font-size:10px; color:#E0204A; letter-spacing:.12em; }
+  .b1 .big { margin-top:14px; font-size:13px; color:#6B6870; letter-spacing:.02em; }
+  .b1 .big em { font-style:normal; color:#17161A; font-size:34px; font-weight:700; letter-spacing:-.03em; display:block; line-height:1; margin-top:2px; }
+  .b1 .stub { background:#fff; border-radius:8px; margin-top:12px; display:flex; overflow:hidden; position:relative; box-shadow:0 1px 0 rgba(0,0,0,.06); }
+  .b1 .stub .im { width:84px; flex:none; }
+  .b1 .stub .im img { width:100%; height:100%; object-fit:cover; display:block; }
+  .b1 .stub .txt { flex:1; padding:10px 12px; min-width:0; }
+  .b1 .stub .txt b { font-size:13px; display:block; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b1 .stub .txt .seat { font-size:10px; color:#8B8792; margin-top:4px; font-family: ui-monospace, monospace; letter-spacing:.06em; }
+  .b1 .stub .txt .seat em { font-style:normal; color:#E0204A; }
+  .b1 .stub .perf { position:absolute; left:84px; top:0; bottom:0; width:0; border-left:1px dashed #D9D5CE; }
+  .b1 .stub .perf::before, .b1 .stub .perf::after { content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#F2F0EC; left:-5px; }
+  .b1 .stub .perf::before { top:-5px; } .b1 .stub .perf::after { bottom:-5px; }
+  .b1 .bar { height:16px; margin-top:2px; background: repeating-linear-gradient(90deg,#17161A 0 1px,transparent 1px 3px,#17161A 3px 5px,transparent 5px 8px); opacity:.75; border-radius:0 0 8px 8px; }
+  .b1 .nav { position:absolute; left:0; right:0; bottom:0; height:62px; background:#17161A; display:flex; }
+  .b1 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10px; color:#8B8792; font-style:normal; letter-spacing:.06em; }
+  .b1 .nav i.on { color:#fff; }
+  .b1 .nav i.on::after { content:""; position:absolute; bottom:12px; width:14px; height:2px; background:#E0204A; }
+
+  /* ───── B2 存根 · 米黄打孔 ───── */
+  .b2 { background:#EFE6D4; color:#1A1A1A; padding:18px 16px 0; }
+  .b2 .hd { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #1A1A1A; padding-bottom:8px; }
+  .b2 .hd b { font-size:16px; letter-spacing:.04em; }
+  .b2 .hd span { font-size:9px; letter-spacing:.16em; color:#6B6355; }
+  .b2 .item { display:flex; background:#FBF6EA; margin-top:10px; border:1px solid #D6C9AE; position:relative; }
+  .b2 .item .im { width:70px; flex:none; }
+  .b2 .item .im img { width:100%; height:100%; object-fit:cover; display:block; filter:saturate(.9); }
+  .b2 .item .t { flex:1; padding:9px 10px; min-width:0; }
+  .b2 .item b { font-size:12.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b2 .item .no { font-family: ui-monospace, monospace; font-size:9.5px; color:#7A6F5B; margin-top:3px; letter-spacing:.1em; }
+  .b2 .item .no i { font-style:normal; color:#2F5D8A; }
+  .b2 .punch { position:absolute; right:-1px; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%; background:#EFE6D4; border:1px solid #D6C9AE; }
+  .b2 .nav { position:absolute; left:0; right:0; bottom:0; height:60px; background:#EFE6D4; border-top:1px solid #D6C9AE; display:flex; }
+  .b2 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10px; color:#8A8071; font-style:normal; }
+  .b2 .nav i.on { color:#2F5D8A; font-weight:600; }
+
+  /* ───── C1 午夜连载 · 黑荧光 ───── */
+  .c1 { background:#0B0B0C; color:#F2F2F2; padding:16px 0 0; }
+  .c1 .hd { padding:0 16px; display:flex; justify-content:space-between; align-items:baseline; }
+  .c1 .hd b { font-size:18px; color:#D8FF3E; letter-spacing:-.01em; }
+  .c1 .hd span { font-size:10px; color:#6F6F72; font-family: ui-monospace, monospace; }
+  .c1 .strip { margin-top:14px; }
+  .c1 .frame { display:flex; align-items:stretch; border-top:1px solid #232325; padding:0 16px; }
+  .c1 .no { width:38px; flex:none; font-family: ui-monospace, monospace; font-size:22px; color:#D8FF3E; padding:12px 0; letter-spacing:-.04em; }
+  .c1 .pic { width:104px; height:146px; flex:none; overflow:hidden; position:relative; }
+  .c1 .pic img { width:100%; height:100%; object-fit:cover; filter:contrast(1.1) saturate(.9); }
+  .c1 .info { flex:1; padding:12px 0 12px 12px; min-width:0; display:flex; flex-direction:column; }
+  .c1 .info b { font-size:13px; line-height:1.4; }
+  .c1 .info p { font-size:10px; color:#7E7E82; margin-top:4px; line-height:1.5; }
+  .c1 .scale { margin-top:auto; display:flex; gap:2px; flex-wrap:wrap; }
+  .c1 .scale s { width:5px; height:9px; background:#2A2A2D; }
+  .c1 .scale s.on { background:#D8FF3E; }
+  .c1 .nav { position:absolute; left:0; right:0; bottom:0; height:62px; background:#0B0B0C; border-top:1px solid #232325; display:flex; }
+  .c1 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10px; color:#6F6F72; font-style:normal; }
+  .c1 .nav i.on { color:#D8FF3E; }
+
+  /* ───── C2 纸白分格 · 黑框朱点 ───── */
+  .c2 { background:#FFFFFF; color:#111; padding:16px 14px 0; }
+  .c2 .hd { display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px solid #111; padding-bottom:6px; }
+  .c2 .hd b { font-size:15px; font-weight:800; letter-spacing:-.02em; }
+  .c2 .hd span { font-size:9px; font-family: ui-monospace, monospace; }
+  .c2 .frame { border:2px solid #111; margin-top:12px; display:flex; }
+  .c2 .frame .im { width:110px; height:150px; flex:none; border-right:2px solid #111; overflow:hidden; }
+  .c2 .frame .im img { width:100%; height:100%; object-fit:cover; filter:grayscale(.15); }
+  .c2 .frame .t { flex:1; padding:10px; min-width:0; }
+  .c2 .frame .t b { font-size:13.5px; font-weight:800; display:block; line-height:1.3; }
+  .c2 .frame .t .k { font-size:9.5px; color:#fff; background:#D8382B; display:inline-block; padding:1px 5px; margin-top:6px; font-weight:600; }
+  .c2 .frame .t p { font-size:10px; color:#5A5A5A; margin-top:6px; line-height:1.45; }
+  .c2 .nav { position:absolute; left:0; right:0; bottom:0; height:60px; border-top:2px solid #111; display:flex; background:#fff; }
+  .c2 .nav i { flex:1; display:flex; align-items:center; justify-content:center; font-size:10px; color:#777; font-style:normal; font-weight:600; }
+  .c2 .nav i.on { color:#111; }
+  .c2 .nav i.on::before { content:"●"; color:#D8382B; font-size:6px; margin-right:4px; }
+</style>
+</head>
+<body>
+<h1>红果剧场 · 第六套主题｜六格候选</h1>
+<p class="sub">现有五套已占：暖白精修 / 沉浸暗场 / 内容卡片 / 红果场刊（暖纸衬线报头）/ 红果小报（新闻纸）。新主题换家族：<b>排片信息板</b>、<b>票根存根</b>、<b>连载分格</b>。真实剧名与封面来自 App 现有素材。</p>
+
+<div class="grid">
+  <!-- A1 -->
+  <div class="slot">
+    <div class="cap"><span><b>A1 · 排片板</b>（LED 点阵）</span><span>信息板家族</span></div>
+    <div class="stage"><div class="phone a1">
+      <div class="brand"><b>红果</b><span>SHOWTIME</span></div>
+      <div class="date"><span>11.17 周二</span><i>此刻 3 部在播</i><span style="margin-left:auto">24 场</span></div>
+      <div class="rowlabel">NOW PLAYING</div>
+      <div class="slotline">
+        <div class="t">19:30</div>
+        <div class="th"><img src="../posters/lingmeng.jpg"></div>
+        <div class="meta"><b>灵葫仙缘<span class="now">直播</span></b><span>第 41 集 · 2:10 · 更新中</span></div>
+      </div>
+      <div class="slotline">
+        <div class="t">20:00</div>
+        <div class="th"><img src="../posters/zhuangqiong.jpg"></div>
+        <div class="meta"><b>装穷提亲，娶到全家嫌弃的她</b><span>第 12 集 · 1:48 · 全 80 集</span></div>
+      </div>
+      <div class="slotline">
+        <div class="t">20:30</div>
+        <div class="th"><img src="../posters/heli.jpg"></div>
+        <div class="meta"><b>和离后我带女儿横扫魔域</b><span>第 88 集 · 2:02 · 1000 集</span></div>
+      </div>
+      <div class="rundown">
+        <div><span>读心嫡女捡了个吃瓜夫君</span><em>76 集</em></div>
+        <div><span>末世轮回：我以尸躯化神明</span><em>102 集</em></div>
+        <div><span>秦医生，搭个伙</span><em>64 集</em></div>
+        <div><span>装疯嫡女，权倾世子心</span><em>90 集</em></div>
+        <div><span>顶级育婴师，竟是小少爷亲妈</span><em>72 集</em></div>
+        <div><span>秦医生，搭个伙</span><em>64 集</em></div>
+        <div><span>装疯嫡女，权倾世子心</span><em>90 集</em></div>
+        <div><span>读心嫡女捡了个吃瓜夫君</span><em>76 集</em></div>
+        <div><span>末世轮回：我以尸躯化神明</span><em>102 集</em></div>
+      </div>
+      <div class="rowlabel" style="margin-top:18px">NOW EPISODE · 今晚一集接一集</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <div style="flex:1;border:1px solid #1E2C3C;padding:7px 8px">
+          <div style="font-size:9px;color:#4C5F76">第 41 集</div>
+          <div style="font-size:11px;color:#C6D2E0;margin-top:2px">灵葫仙缘</div>
+          <div style="height:2px;background:#22303F;margin-top:6px"><div style="width:82%;height:2px;background:#FFB020"></div></div>
+        </div>
+        <div style="flex:1;border:1px solid #1E2C3C;padding:7px 8px">
+          <div style="font-size:9px;color:#4C5F76">第 12 集</div>
+          <div style="font-size:11px;color:#C6D2E0;margin-top:2px">装穷提亲</div>
+          <div style="height:2px;background:#22303F;margin-top:6px"><div style="width:34%;height:2px;background:#FFB020"></div></div>
+        </div>
+        <div style="flex:1;border:1px solid #1E2C3C;padding:7px 8px">
+          <div style="font-size:9px;color:#4C5F76">第 88 集</div>
+          <div style="font-size:11px;color:#C6D2E0;margin-top:2px">和离后</div>
+          <div style="height:2px;background:#22303F;margin-top:6px"><div style="width:56%;height:2px;background:#FFB020"></div></div>
+        </div>
+      </div>
+      <div class="nav"><i class="on">排片</i><i>发现</i><i>片单</i><i>我的</i></div>
+    </div></div>
+  </div>
+
+  <!-- A2 -->
+  <div class="slot">
+    <div class="cap"><span><b>A2 · 黑板场次</b>（粉笔手写）</span><span>信息板家族</span></div>
+    <div class="stage"><div class="phone a2">
+      <div class="hd">今 日 场 次</div>
+      <h2>红果剧场 · 晚间</h2>
+      <div class="line"></div>
+      <div class="show">
+        <div class="tm"><b>19:30</b><span>正在播</span></div>
+        <div class="body"><b>灵葫仙缘：葫中藏尽世间米</b><p>第 41 集 · 2分10秒 · 更新中</p><span class="tag">仙侠 · 81 集</span></div>
+        <div class="th"><img src="../posters/lingmeng.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>20:00</b><span>即将</span></div>
+        <div class="body"><b>装穷提亲，娶到全家嫌弃的她</b><p>第 12 集 · 1分48秒</p><span class="tag">都市 · 80 集</span></div>
+        <div class="th"><img src="../posters/zhuangqiong.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>20:30</b><span>即将</span></div>
+        <div class="body"><b>和离后我带女儿横扫魔域</b><p>第 88 集 · 2分02秒</p><span class="tag">玄幻 · 1000 集</span></div>
+        <div class="th"><img src="../posters/heli.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>21:00</b><span></span></div>
+        <div class="body"><b>读心嫡女捡了个吃瓜夫君</b><p>第 30 集 · 1分55秒</p><span class="tag">古装 · 76 集</span></div>
+        <div class="th"><img src="../posters/duxin.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>21:30</b><span></span></div>
+        <div class="body"><b>末世轮回：我以尸躯化神明</b><p>第 17 集 · 2分05秒</p><span class="tag">末世 · 102 集</span></div>
+        <div class="th"><img src="../posters/moshi-big.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>22:00</b><span></span></div>
+        <div class="body"><b>秦医生，搭个伙</b><p>第 8 集 · 1分52秒</p><span class="tag">都市 · 64 集</span></div>
+        <div class="th"><img src="../posters/qinyisheng.jpg"></div>
+      </div>
+      <div style="font-size:10px;color:#7E9187;margin-top:14px">— 末场 23:30 · 明日 19:30 继续 —</div>
+      <div class="nav"><i class="on">场次</i><i>发现</i><i>片单</i><i>我的</i></div>
+    </div></div>
+  </div>
+
+  <!-- B1 -->
+  <div class="slot">
+    <div class="cap"><span><b>B1 · 票根</b>（冷白品红）</span><span>票据家族</span></div>
+    <div class="stage"><div class="phone b1">
+      <div class="top"><b>今日场次</b><span>红果 · 24 场</span></div>
+      <div class="big">今晚可入场<em>3 部</em></div>
+      <div class="stub">
+        <div class="im"><img src="../posters/lingmeng.jpg"></div>
+        <div class="perf"></div>
+        <div class="txt"><b>灵葫仙缘：葫中藏尽世间米</b><div class="seat">A-041 · 第 41 集 · <em>正在播</em></div></div>
+      </div>
+      <div class="bar"></div>
+      <div class="stub">
+        <div class="im"><img src="../posters/zhuangqiong.jpg"></div>
+        <div class="perf"></div>
+        <div class="txt"><b>装穷提亲，娶到全家嫌弃的她</b><div class="seat">A-012 · 第 12 集 · <em>20:00</em></div></div>
+      </div>
+      <div class="bar"></div>
+      <div class="stub">
+        <div class="im"><img src="../posters/heli.jpg"></div>
+        <div class="perf"></div>
+        <div class="txt"><b>和离后我带女儿横扫魔域</b><div class="seat">A-088 · 第 88 集 · <em>20:30</em></div></div>
+      </div>
+      <div class="bar"></div>
+      <div class="show">
+        <div class="tm"><b>21:30</b><span></span></div>
+        <div class="body"><b>末世轮回：我以尸躯化神明</b><p>第 17 集 · 2分05秒</p><span class="tag">末世 · 102 集</span></div>
+        <div class="th"><img src="../posters/moshi-big.jpg"></div>
+      </div>
+      <div class="show">
+        <div class="tm"><b>22:00</b><span></span></div>
+        <div class="body"><b>秦医生，搭个伙</b><p>第 8 集 · 1分52秒</p><span class="tag">都市 · 64 集</span></div>
+        <div class="th"><img src="../posters/qinyisheng.jpg"></div>
+      </div>
+      <div style="font-size:10px;color:#7E9187;margin-top:14px">— 末场 23:30 · 明日 19:30 继续 —</div>
+      <div class="nav"><i class="on">场次</i><i>发现</i><i>片单</i><i>我的</i></div>
+    </div></div>
+  </div>
+
+  <!-- B2 -->
+  <div class="slot">
+    <div class="cap"><span><b>B2 · 存根</b>（米黄打孔）</span><span>票据家族</span></div>
+    <div class="stage"><div class="phone b2">
+      <div class="hd"><b>我的存根</b><span>ROOT 03 / 24</span></div>
+      <div class="item">
+        <div class="im"><img src="../posters/zhuangqiong.jpg"></div>
+        <div class="t"><b>装穷提亲，娶到全家嫌弃的她</b><div class="no">NO.<i>2026-1117-03</i> · 看到第 3 集</div><div class="no" style="color:#B4552F">未撕 · 80 集</div></div>
+        <div class="punch"></div>
+      </div>
+      <div class="item">
+        <div class="im"><img src="../posters/moshi-big.jpg"></div>
+        <div class="t"><b>末世轮回：我以尸躯化神明</b><div class="no">NO.<i>2026-1116-11</i> · 看到第 17 集</div><div class="no" style="color:#B4552F">未撕 · 102 集</div></div>
+        <div class="punch"></div>
+      </div>
+      <div class="item">
+        <div class="im"><img src="../posters/duxin.jpg"></div>
+        <div class="t"><b>读心嫡女捡了个吃瓜夫君</b><div class="no">NO.<i>2026-1115-02</i> · 看到第 30 集</div><div class="no" style="color:#6B6355">已存 · 76 集</div></div>
+        <div class="punch"></div>
+      </div>
+      <div class="item">
+        <div class="im"><img src="../posters/heli.jpg"></div>
+        <div class="t"><b>和离后我带女儿横扫魔域</b><div class="no">NO.<i>2026-1114-08</i> · 看到第 88 集</div><div class="no" style="color:#B4552F">未撕 · 1000 集</div></div>
+        <div class="punch"></div>
+      </div>
+      <div class="item">
+        <div class="im"><img src="../posters/qinyisheng.jpg"></div>
+        <div class="t"><b>秦医生，搭个伙</b><div class="no">NO.<i>2026-1113-21</i> · 看到第 8 集</div><div class="no" style="color:#6B6355">已存 · 64 集</div></div>
+        <div class="punch"></div>
+      </div>
+      <div class="nav"><i>首页</i><i>发现</i><i class="on">存根</i><i>我的</i></div>
+    </div></div>
+  </div>
+
+  <!-- C1 -->
+  <div class="slot">
+    <div class="cap"><span><b>C1 · 午夜连载</b>（黑＋荧光）</span><span>分格家族</span></div>
+    <div class="stage"><div class="phone c1">
+      <div class="hd"><b>连载中</b><span>3 / 24</span></div>
+      <div class="strip">
+        <div class="frame">
+          <div class="no">01</div>
+          <div class="pic"><img src="../posters/lingmeng.jpg"></div>
+          <div class="info"><b>灵葫仙缘：葫中藏尽世间米</b><p>第 41 集已更新 · 2:10</p>
+            <div class="scale"><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="no">02</div>
+          <div class="pic"><img src="../posters/zhuangqiong.jpg"></div>
+          <div class="info"><b>装穷提亲，娶到全家嫌弃的她</b><p>看到第 3 集 · 79 集待解锁</p>
+            <div class="scale"><s class="on"></s><s class="on"></s><s class="on"></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="no">03</div>
+          <div class="pic"><img src="../posters/moshi-big.jpg"></div>
+          <div class="info"><b>末世轮回：我以尸躯化神明</b><p>看到第 17 集 · 85 集待解锁</p>
+            <div class="scale"><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+      </div>
+      <div class="frame" style="border-bottom:1px solid #232325">
+          <div class="no">04</div>
+          <div class="pic"><img src="../posters/duxin.jpg"></div>
+          <div class="info"><b>读心嫡女捡了个吃瓜夫君</b><p>看到第 30 集 · 46 集待解锁</p>
+            <div class="scale"><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin:16px;border:1px solid #2A2A2D;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:9px;color:#6F6F72;font-family:ui-monospace,monospace">NEXT · 22:00</div>
+        <div style="font-size:12px;color:#F2F2F2;margin-top:3px">和离后我带女儿横扫魔域 · 第 88 集</div></div>
+        <div style="font-size:10px;color:#D8FF3E">提醒</div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/heli.jpg"></div>
+        <div class="t"><b>和离后我带女儿横扫魔域</b><span class="k">第 88 集</span><p>912 集待看<br>1000 集 · 玄幻</p></div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/duxin.jpg"></div>
+        <div class="t"><b>读心嫡女捡了个吃瓜夫君</b><span class="k">第 30 集</span><p>46 集待看<br>76 集 · 古装</p></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#5A5A5A;margin-top:16px;font-family:ui-monospace,monospace">
+        <span>共 4 部在追</span><span>今日 2 部更新</span>
+      </div>
+      <div class="nav"><i class="on">连载</i><i>发现</i><i>片单</i><i>我的</i></div>
+    </div></div>
+  </div>
+
+  <!-- C2 -->
+  <div class="slot">
+    <div class="cap"><span><b>C2 · 分格白</b>（黑框朱点）</span><span>分格家族</span></div>
+    <div class="stage"><div class="phone c2">
+      <div class="hd"><b>连载 03 部</b><span>ROOT / 1117</span></div>
+      <div class="frame">
+        <div class="im"><img src="../posters/lingmeng.jpg"></div>
+        <div class="t"><b>灵葫仙缘：葫中藏尽世间米</b><span class="k">第 41 集</span><p>更新中 · 2 分 10 秒<br>81 集 · 仙侠</p></div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/zhuangqiong.jpg"></div>
+        <div class="t"><b>装穷提亲，娶到全家嫌弃的她</b><span class="k">第 3 集</span><p>79 集待看<br>80 集 · 都市</p></div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/qinyisheng.jpg"></div>
+        <div class="t"><b>秦医生，搭个伙</b><span class="k">第 8 集</span><p>56 集待看<br>64 集 · 都市</p></div>
+      </div>
+      <div class="frame" style="border-bottom:1px solid #232325">
+          <div class="no">04</div>
+          <div class="pic"><img src="../posters/duxin.jpg"></div>
+          <div class="info"><b>读心嫡女捡了个吃瓜夫君</b><p>看到第 30 集 · 46 集待解锁</p>
+            <div class="scale"><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s class="on"></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          </div>
+        </div>
+      </div>
+      <div style="margin:16px;border:1px solid #2A2A2D;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:9px;color:#6F6F72;font-family:ui-monospace,monospace">NEXT · 22:00</div>
+        <div style="font-size:12px;color:#F2F2F2;margin-top:3px">和离后我带女儿横扫魔域 · 第 88 集</div></div>
+        <div style="font-size:10px;color:#D8FF3E">提醒</div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/heli.jpg"></div>
+        <div class="t"><b>和离后我带女儿横扫魔域</b><span class="k">第 88 集</span><p>912 集待看<br>1000 集 · 玄幻</p></div>
+      </div>
+      <div class="frame">
+        <div class="im"><img src="../posters/duxin.jpg"></div>
+        <div class="t"><b>读心嫡女捡了个吃瓜夫君</b><span class="k">第 30 集</span><p>46 集待看<br>76 集 · 古装</p></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#5A5A5A;margin-top:16px;font-family:ui-monospace,monospace">
+        <span>共 4 部在追</span><span>今日 2 部更新</span>
+      </div>
+      <div class="nav"><i class="on">连载</i><i>发现</i><i>片单</i><i>我的</i></div>
+    </div></div>
+  </div>
+</div>
+</body>
+</html>

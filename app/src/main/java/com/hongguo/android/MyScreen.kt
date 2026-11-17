@@ -97,6 +97,18 @@ internal fun MyScreen(state: HongguoUiState, model: HongguoViewModel,
         }
         // 红果小报 shares the 我的 page; its voice lives on 头版/检索/剪存/内页.
         AppThemeStyle.GAZETTE -> Unit
+        // 集刻度 gets its own 订阅人 page: the rail carries over from 追更.
+        AppThemeStyle.RAIL -> {
+            RailMine(
+                dark = false,
+                followingCount = 4,
+                accountName = accountName, accountStatus = accountStatus, accountAvatar = accountAvatar,
+                onFollowing = { model.selectTab(AppTab.FAVORITES) },
+                onHistory = { model.selectTab(AppTab.PLAY_HISTORY) },
+                onAccount = onAccount, onSettings = openSettings,
+            )
+            return
+        }
         AppThemeStyle.WARM -> Unit
     }
     // Each destination has one entry: the stat cards open 收藏 / 历史, the account card opens the account page, and the
@@ -443,6 +455,44 @@ private fun ThemePreview(style: AppThemeStyle, dark: Boolean?) {
                             fontSize = 7.sp, fontWeight = FontWeight.Bold)
                         Box(Modifier.size(width = 10.dp, height = 13.dp).background(PreviewTones[(row + 3) % PreviewTones.size]))
                         Box(Modifier.weight(1f).height(3.dp).background(p.line))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                PreviewNav(p)
+            }
+            // 集刻度:一张主卡 + 一条刻度尺,预览里也要能看出这套的骨架。
+            AppThemeStyle.RAIL -> Column(Modifier.fillMaxSize().padding(5.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("红果", color = p.ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.size(width = 14.dp, height = 2.dp).background(p.line))
+                }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(3.dp)).background(p.card).padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Box(Modifier.size(width = 20.dp, height = 27.dp).clip(RoundedCornerShape(2.dp)).background(PreviewTones[1]))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Box(Modifier.fillMaxWidth(.92f).height(4.dp).clip(RoundedCornerShape(1.dp)).background(p.ink))
+                        Box(Modifier.fillMaxWidth(.6f).height(3.dp).background(p.line))
+                        Row(Modifier.fillMaxWidth().height(7.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                            // 已看 3 根、其余留灰:比例就是这套主题说的话。
+                            repeat(14) { tick ->
+                                Box(Modifier.weight(1f).fillMaxHeight()
+                                    .background(if (tick < 3) p.accent else p.line))
+                            }
+                        }
+                        Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(2.dp)).background(p.accent))
+                    }
+                }
+                repeat(3) { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(width = 12.dp, height = 16.dp).clip(RoundedCornerShape(1.dp))
+                            .background(PreviewTones[(row + 2) % PreviewTones.size]))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Box(Modifier.fillMaxWidth(.8f).height(3.dp).background(p.ink))
+                            Row(Modifier.fillMaxWidth().height(3.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                                repeat(18) { tick -> Box(Modifier.weight(1f).fillMaxHeight().background(if (tick < 9) p.accent else p.line)) }
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.weight(1f))

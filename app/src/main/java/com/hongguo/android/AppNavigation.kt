@@ -97,6 +97,12 @@ internal fun AppNavigation(selected: AppTab, onSelect: (AppTab) -> Unit, modifie
             AppNavTab(AppTab.CATEGORY, "检索", Icons.Outlined.Explore, Icons.Filled.Explore),
             AppNavTab(AppTab.FAVORITES, "剪存", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
             AppNavTab(AppTab.MINE, "我的", Icons.Outlined.PersonOutline, Icons.Filled.Person))
+        // 集刻度: 首页是「今晚」,追更页顺手,标签就按用户自己的说法来。
+        AppThemeStyle.RAIL -> listOf(
+            AppNavTab(AppTab.HOME, "今晚", Icons.Outlined.Home, Icons.Filled.Home),
+            AppNavTab(AppTab.CATEGORY, "发现", Icons.Outlined.Explore, Icons.Filled.Explore),
+            AppNavTab(AppTab.FAVORITES, "追更", Icons.Outlined.VideoLibrary, Icons.Filled.VideoLibrary),
+            AppNavTab(AppTab.MINE, "我的", Icons.Outlined.PersonOutline, Icons.Filled.Person))
     }
     // 悬浮玻璃 (设置 › 底栏样式): a liquid-glass capsule over the page. The caller passes [backdrop] only when it has
     // laid the page out underneath the capsule; otherwise the themed classic bar below is used.
@@ -150,6 +156,8 @@ internal fun AppNavigation(selected: AppTab, onSelect: (AppTab) -> Unit, modifie
                     val popLayer = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }
                     val color by animateColorAsState(when {
                         !isSelected -> secondary
+                        // 集刻度把红留给「你在哪」:选中项就是那个红,其余保持 ink。
+                        style == AppThemeStyle.RAIL -> Orange
                         style == AppThemeStyle.WARM -> AccentInk
                         else -> Ink
                     }, tween(180), label = "nav_color_${tab.name}")

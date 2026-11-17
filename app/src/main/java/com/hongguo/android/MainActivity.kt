@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
             // A detail page's picture sits behind the status bar, so its icons stay light until the picture scrolls away.
             var detailPictureUnderBar by remember(state.selectedCard?.id) { mutableStateOf(true) }
             val statusBarOverPicture = state.selectedCard != null && layout != AppThemeStyle.WARM &&
-                layout != AppThemeStyle.PLAYBILL && layout != AppThemeStyle.GAZETTE && detailPictureUnderBar
+                layout != AppThemeStyle.PLAYBILL && layout != AppThemeStyle.GAZETTE && layout != AppThemeStyle.RAIL && detailPictureUnderBar
             // The player owns the system bars while open; the theme re-applies them when it closes.
             HongguoTheme(layout, dark = dark, windowDark = dark || feedDark, statusBarOverPicture = statusBarOverPicture, applyToWindow = !state.playerOpen) {
                 CompositionLocalProvider(LocalDetailPictureUnderBar provides { detailPictureUnderBar = it }) {
@@ -154,6 +154,7 @@ class MainActivity : ComponentActivity() {
                                 AppThemeStyle.CARDS -> CardsDetail(detailState, model, accountModel)
                                 AppThemeStyle.PLAYBILL -> PlaybillDetail(detailState, model, accountModel)
                                 AppThemeStyle.GAZETTE -> GazetteDetail(detailState, model, accountModel)
+                                AppThemeStyle.RAIL -> RailDetail(dark = dark || feedDark)
                                 AppThemeStyle.WARM -> DetailScreen(detailState, model, accountModel)
                             }
                             else if (key.startsWith("detail_")) Unit
@@ -166,6 +167,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsHome(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillHome(state, model)
                                     AppThemeStyle.GAZETTE -> GazetteHome(state, model)
+                                    AppThemeStyle.RAIL -> RailHome(dark = dark || feedDark)
                                     AppThemeStyle.WARM -> {
                                         BrandHeader()
                                         HomeScreen(state, model)
@@ -176,6 +178,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
                                     AppThemeStyle.GAZETTE -> GazetteTheater(state, model)
+                                    AppThemeStyle.RAIL -> RailLibrary(dark = dark || feedDark)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)
@@ -186,6 +189,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsLibrary(tabState, model, accountModel)
                                     AppThemeStyle.PLAYBILL -> PlaybillLibrary(tabState, model, accountModel)
                                     AppThemeStyle.GAZETTE -> GazetteLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.RAIL -> RailLibrary(dark = dark || feedDark)
                                     AppThemeStyle.WARM -> LibraryScreen(tabState, model, accountModel)
                                 }
                                 AppTab.MINE -> MyScreen(state, model, updateState, updateModel,
@@ -301,6 +305,8 @@ private fun drawsUnderStatusBar(key: String, layout: AppThemeStyle): Boolean = w
     AppThemeStyle.CARDS -> key.startsWith("detail_")
     // 暖白精修's detail page has no picture at the top: its header already runs on into the status bar's color.
     // 红果场刊 is a paper sheet: it pads below the status bar like every other page. 红果小报 likewise.
+    // 集刻度's detail page opens on its poster too, so the picture runs under the bar.
+    AppThemeStyle.RAIL -> key.startsWith("detail_")
     AppThemeStyle.PLAYBILL, AppThemeStyle.GAZETTE, AppThemeStyle.WARM -> false
 }
 
