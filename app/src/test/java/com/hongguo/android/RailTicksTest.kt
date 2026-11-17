@@ -72,6 +72,29 @@ class RailTicksTest {
         assertEquals(0, railWatchedTicks(total = 0, watched = 5, shown = 0))
     }
 
+    @Test
+    fun scaleLabelsFollowTheRealEpisodeCount() {
+        assertEquals(listOf("1", "20", "40", "60", "80"), railScaleLabels(80))
+        assertEquals(listOf("1", "20", "40", "60", "81"), railScaleLabels(81))
+        assertEquals(listOf("1", "250", "500", "750", "1000"), railScaleLabels(1000))
+        assertEquals(listOf("1", "16", "32", "48", "64"), railScaleLabels(64))
+    }
+
+    @Test
+    fun scaleLabelsNeverProduceInvalidOrDuplicateAnchors() {
+        assertEquals(listOf("1"), railScaleLabels(0))
+        assertEquals(listOf("1"), railScaleLabels(1))
+        for (total in 2..120) {
+            val labels = railScaleLabels(total)
+            if (labels.first() != "1") throw AssertionError("total=$total 起点错误")
+            if (labels.last() != total.toString()) throw AssertionError("total=$total 末点错误")
+            if (labels.distinct().size != labels.size) throw AssertionError("total=$total 标尺重复")
+            if (labels.any { it.toIntOrNull()?.let { value -> value < 1 || value > total } != false }) {
+                throw AssertionError("total=$total 标尺越界: $labels")
+            }
+        }
+    }
+
     private fun assertTrueLike(message: String, condition: Boolean) {
         if (!condition) throw AssertionError(message)
     }
