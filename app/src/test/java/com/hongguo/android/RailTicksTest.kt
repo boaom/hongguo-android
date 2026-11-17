@@ -73,6 +73,16 @@ class RailTicksTest {
     }
 
     @Test
+    fun historyAndFavoritesRatiosMatchTheirEpisodeNumbers() {
+        // 实测反馈里的几项：刻度必须跟「看到第 N 集 / 总集数」同一条比例，不得被页签或列表布局影响。
+        assertEquals(30, railWatchedTicks(total = 136, watched = 68, shown = 60))
+        assertEquals(1, railWatchedTicks(total = 1000, watched = 8, shown = 60))
+        assertEquals(2, railWatchedTicks(total = 24, watched = 2, shown = 24))
+        assertEquals(1, railWatchedTicks(total = 88, watched = 1, shown = 60))
+        assertEquals(2, railWatchedTicks(total = 13, watched = 2, shown = 13))
+    }
+
+    @Test
     fun scaleLabelsFollowTheRealEpisodeCount() {
         assertEquals(listOf("1", "20", "40", "60", "80"), railScaleLabels(80))
         assertEquals(listOf("1", "20", "40", "60", "81"), railScaleLabels(81))

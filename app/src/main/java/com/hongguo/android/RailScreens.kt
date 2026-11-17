@@ -269,8 +269,24 @@ private fun RailSummaryLine(label: String, value: String) {
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(label, color = LocalRailColors.current.muted, fontSize = 13.sp)
-        Text(value, color = LocalRailColors.current.ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            label,
+            Modifier.weight(1f),
+            color = LocalRailColors.current.muted,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            value,
+            Modifier.padding(start = 12.dp),
+            color = LocalRailColors.current.ink,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+        )
     }
 }
 
@@ -977,8 +993,22 @@ private fun RailLibraryRow(entry: LibraryEntry, showDivider: Boolean, onOpen: ()
                 )
                 Box(Modifier.padding(top = 8.dp)) { EpisodeRail(progress.total, progress.watched, RailRailStyle.Small) }
                 Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("还剩 ${progress.remaining} 集", color = colors.muted, fontSize = 12.sp)
-                    Text(railDuration(progress.remaining), color = colors.muted, fontSize = 12.sp)
+                    Text(
+                        "还剩 ${progress.remaining} 集",
+                        Modifier.weight(1f),
+                        color = colors.muted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        railDuration(progress.remaining),
+                        Modifier.padding(start = 10.dp),
+                        color = colors.muted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        textAlign = TextAlign.End,
+                    )
                 }
             }
         }
@@ -993,6 +1023,10 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
         val history = state.tab == AppTab.HISTORY
         val entries = if (history) state.history else state.favorites
         val totalEpisodes = entries.sumOf { it.card.episodeCount }
+        val watchedEpisodes = entries.sumOf {
+            it.episodeIndex.coerceIn(0, it.card.episodeCount.coerceAtLeast(0))
+        }
+        val remainingEpisodes = (totalEpisodes - watchedEpisodes).coerceAtLeast(0)
 
         LazyColumn(
             Modifier.fillMaxSize().background(colors.surface).testTag("rail_library"),
@@ -1019,7 +1053,7 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                             )
                             Box(
-                                Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp)
+                                Modifier.padding(top = 4.dp).width(36.dp).height(2.dp)
                                     .background(if (active) colors.brand else Color.Transparent),
                             )
                         }
@@ -1030,7 +1064,7 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                 RailSummaryLine(
                     if (entries.isEmpty()) "还没有记录"
                     else "共 ${entries.size} 部 · ${totalEpisodes} 集",
-                    if (entries.isEmpty()) "" else "共 ${totalEpisodes} 集",
+                    if (entries.isEmpty()) "" else "已看 $watchedEpisodes 集 · 剩 $remainingEpisodes 集",
                 )
             }
             if (entries.isEmpty()) {
