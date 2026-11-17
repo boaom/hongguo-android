@@ -73,6 +73,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.text.style.TextAlign
+import com.hongguo.account.protocol.RankEntry
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -1182,7 +1184,12 @@ private fun RailEmptyLine(title: String, hint: String) {
 }
 
 @Composable
-private fun RailSectionTitle(title: String, trailing: String, count: String? = null) {
+private fun RailSectionTitle(
+    title: String,
+    trailing: String,
+    count: String? = null,
+    onTrailing: (() -> Unit)? = null,
+) {
     Row(
         Modifier.fillMaxWidth().padding(bottom = 10.dp),
         verticalAlignment = Alignment.Bottom,
@@ -1192,7 +1199,18 @@ private fun RailSectionTitle(title: String, trailing: String, count: String? = n
             Text(title, color = LocalRailColors.current.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             count?.let { Text(it, color = LocalRailColors.current.muted, fontSize = 12.sp) }
         }
-        Text(trailing, color = LocalRailColors.current.muted, fontSize = 12.sp)
+        if (onTrailing != null && trailing.isNotBlank()) {
+            Text(
+                trailing,
+                Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onTrailing)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                color = LocalRailColors.current.brand,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        } else if (trailing.isNotBlank()) {
+            Text(trailing, color = LocalRailColors.current.muted, fontSize = 12.sp)
+        }
     }
 }
 
@@ -1479,6 +1497,45 @@ fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp).plusNavClearance(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    // 排行榜：接 state.rankEntries（综合/真人剧/漫剧/AI 剧 四块真实榜单），
+                    // 点「完整榜单」进 RankScreen，点条目直接开详情。
+                    if (state.rankEntries.isNotEmpty()) {
+                        item {
+                            RailSectionTitle(
+                                "排行榜",
+                                "查看全部",
+                                count = state.rankBoard.label,
+                                onTrailing = model::openRank,
+                            )
+                        }
+                        items(state.rankEntries.take(5), key = { "rank_${it.series.id}" }) { entry ->
+                            RailRankRow(entry) { model.openDrama(entry.toCard()) }
+                        }
+                        if (state.rankEntries.size > 5 || state.rankPage < state.rankTotalPages) {
+                            item {
+                                Text(
+                                    "完整榜单",
+                                    Modifier.fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { model.openRank() }
+                                        .testTag("rail_rank_more")
+                                        .padding(vertical = 10.dp),
+                                    color = colors.brand,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                        item { Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hair)) }
+                    }
+                    when {
+                        state.rankError != null && state.rankEntries.isEmpty() ->
+                            item { RailErrorLine(state.rankError!!, onRetry = model::retryRank) }
+                        state.rankLoading && state.rankEntries.isEmpty() -> item { RailLoadingLine() }
+                    }
+
+                    item { RailSectionTitle("全部剧集", if (items.isEmpty()) "" else "${items.size} 部") }
                     itemsIndexed(items.chunked(3), key = { _, row -> row.first().id }) { _, row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             row.forEach { card ->
@@ -1639,10 +1696,11 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
                                     repeat(perRow) { column ->
                                         val index = row * perRow + column
                                         if (index < episodes.size) {
-                                            val episode = episodes[index]
                                             Box(Modifier.weight(1f)) {
-                                                RailEpisodeCell(episode.index, progress.watched) {
-                                                    model.playEpisode(episode.index)
+                                                // 显示 1 基集号，播放传 0 基列表下标（playEpisode 走
+                                                // episodes.getOrNull(position)，传 1 基会整体错开一集）。
+                                                RailEpisodeCell(index + 1, progress.watched) {
+                                                    model.playEpisode(index)
                                                 }
                                             }
                                         } else {
@@ -1678,10 +1736,53 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
                 else append("从第 1 集开始")
             },
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp).navigationBarsPadding(),
-        ) { model.playEpisode(progress.nextEpisode) }
+        // nextEpisode 是 1 基集号（给人看的），playEpisode 要 0 基下标。
+        ) { model.playEpisode((progress.nextEpisode - 1).coerceAtLeast(0)) }
     }
 }
 
+
+
+/** 发现页里的一行榜单：名次 + 封面 + 剧名 + 热度/集数，语言与集刻度一致。 */
+@Composable
+private fun RailRankRow(entry: RankEntry, onOpen: () -> Unit) {
+    val colors = LocalRailColors.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpen)
+            .testTag("rail_rank_${entry.series.id}").padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            if (entry.rank > 0) entry.rank.toString() else "–",
+            Modifier.width(22.dp),
+            color = if (entry.rank in 1..3) colors.brand else colors.muted,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        RailPoster(entry.toCard(), Modifier.width(40.dp).height(54.dp), corner = 6.dp)
+        Column(Modifier.weight(1f)) {
+            Text(
+                entry.series.title,
+                color = colors.ink,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                listOf(entry.heat, if (entry.episodeCount > 0) "全 ${entry.episodeCount} 集" else "")
+                    .filter { it.isNotBlank() }.joinToString(" · "),
+                Modifier.padding(top = 3.dp),
+                color = colors.muted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 @Composable
 private fun RailLibraryRow(entry: LibraryEntry, showDivider: Boolean, onOpen: () -> Unit) {
