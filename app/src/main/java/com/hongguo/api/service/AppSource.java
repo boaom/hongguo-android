@@ -191,6 +191,8 @@ public final class AppSource {
             modelFailure = e;
         }
         // LiuWQ0809/hongguo-android 89169c0: recover empty single-endpoint replies first.
+        // 上游 0.7.30（N3urda/hongguoTV 6672b55）：v5 mobile endpoint first; bounded recovery from
+        // LiuWQ0809 89169c0. 我方在这里保留更严的链路：v5 → 11-13 两跳 → 单集有限恢复 → 兼容路由。
         // Retain our route order, model-error precedence, cancellation and overall request budget.
         try {
             for (int attempt = 0; attempt < SINGLE_ATTEMPTS && hasPlaybackTime(started, budgetMs); attempt++) {
@@ -357,10 +359,10 @@ public final class AppSource {
         }
     }
 
-    /** 播放接口返回空响应：疑似匿名身份被拒，fetch 会换新身份重试一次。 */
+    /** 播放接口返回空响应：原因不确定，由 fetch 在预算内有限恢复。 */
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
         public EmptyPlaybackResponseException() {
-            super("App 接口返回空响应，疑似播放设备身份被拒，请稍后重试");
+            super("App 接口返回空响应，原因尚未确认，请稍后重试");
         }
     }
 
@@ -376,7 +378,7 @@ public final class AppSource {
         playbackPost = post == null ? AppSource::postPlayback : post;
     }
 
-    /** 可替换的单集取流（JVM 测试注入）；生产实现见 {@link #fetchSingle}。 */
+    /** 可替换的优先取流（JVM 测试注入）；生产实现见 {@link #fetchSingle}。 */
     interface SinglePlayback {
         Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception;
     }
@@ -962,7 +964,6 @@ public final class AppSource {
         return Json.stringify(payload).getBytes(StandardCharsets.UTF_8);
     }
 
-    /** 完整签名的单集 POST；空正文按空响应处理，模型交给 {@link #parseModel}（ByteVC2 与备用片源规则不变）。 */
     private static Stream.VideoTrack fetchSingle(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
         byte[] body = singleBody(vid);
@@ -1198,6 +1199,7 @@ public final class AppSource {
         checkPlaybackCancellation();
         if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
         Http.Resp res = sendPlaybackRequest(req, started, budgetMs);
+        if (res.body != null && res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         if (res.body == null || res.body.length == 0 || res.text().trim().isEmpty()) {
             throw new EmptyPlaybackResponseException();
