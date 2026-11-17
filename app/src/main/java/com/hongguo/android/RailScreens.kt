@@ -72,6 +72,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -1428,6 +1429,7 @@ private fun RailEpisodeCell(episode: Int, watched: Int, onClick: () -> Unit) {
  * 发现：分类筛选后的剧池，与其它主题的「发现/剧场/检索」同一条数据源（state.category）。
  * 网格沿用集刻度自己的语言——封面 + 剧名 + 集数，进度条只在有记录时出现。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
     RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
