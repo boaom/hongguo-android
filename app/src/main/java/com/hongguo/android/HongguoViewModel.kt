@@ -179,6 +179,23 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) loadRank(state.value.rankBoard, 1)
     }
 
+    /** 发现页也消费榜单摘要，但它不该为了取数据把用户导航到完整榜单页。 */
+    fun loadRankPreview() {
+        if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) {
+            loadRank(state.value.rankBoard, 1)
+        }
+    }
+
+    /** 榜单摘要请求失败后的重试：空榜从第一页重来，有榜则保留已有内容加载下一页。 */
+    fun retryRankPreview() {
+        if (state.value.rankEntries.isEmpty()) {
+            mutableState.update { it.copy(rankError = null) }
+            loadRank(state.value.rankBoard, 1)
+        } else {
+            retryRank()
+        }
+    }
+
     fun selectRankBoard(board: RankBoard) {
         if (board == state.value.rankBoard) return
         mutableState.update { it.copy(rankBoard = board, rankEntries = emptyList(), rankPage = 0, rankTotalPages = 0, rankError = null) }
