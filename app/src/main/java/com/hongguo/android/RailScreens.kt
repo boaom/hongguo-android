@@ -67,6 +67,11 @@ import coil.request.ImageRequest
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.hongguo.account.AccountViewModel
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -1418,6 +1423,105 @@ private fun RailEpisodeCell(episode: Int, watched: Int, onClick: () -> Unit) {
     }
 }
 
+
+/**
+ * 发现：分类筛选后的剧池，与其它主题的「发现/剧场/检索」同一条数据源（state.category）。
+ * 网格沿用集刻度自己的语言——封面 + 剧名 + 集数，进度条只在有记录时出现。
+ */
+@Composable
+fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
+    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+        val colors = LocalRailColors.current
+        val items = state.category.items
+        var showFilters by rememberSaveable { mutableStateOf(false) }
+        val list = rememberLazyListState()
+        LoadAheadEffect(state.category, { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 },
+            { list.layoutInfo.totalItemsCount }, state.browseDraft == state.browseApplied, model::loadMoreBrowse)
+
+        Column(Modifier.fillMaxSize().background(colors.surface)) {
+            RailTopBar("发现", if (items.isEmpty()) "" else "${items.size} 部")
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    state.browseDraft.genre.ifBlank { "全部类型" },
+                    Modifier.weight(1f),
+                    color = colors.muted,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "筛选",
+                    Modifier.clip(RoundedCornerShape(6.dp))
+                        .background(colors.card)
+                        .clickable { showFilters = true }
+                        .testTag("rail_filters")
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    color = colors.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            when {
+                items.isEmpty() && state.category.loading -> RailLoadingLine()
+                items.isEmpty() && state.category.error != null ->
+                    RailErrorLine(state.category.error!!, onRetry = model::loadMoreBrowse)
+                items.isEmpty() -> RailEmptyLine("这个条件下没有剧", "换个类型或清掉筛选试试")
+                else -> LazyColumn(
+                    Modifier.fillMaxSize().testTag("rail_discover"),
+                    state = list,
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp).plusNavClearance(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    itemsIndexed(items.chunked(3), key = { _, row -> row.first().id }) { _, row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEach { card ->
+                                val progress = railProgressOf(card, state)
+                                Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).clickable { model.openDrama(card) }) {
+                                    RailPoster(card, Modifier.fillMaxWidth().aspectRatio(3f / 4.2f))
+                                    Text(
+                                        card.title,
+                                        Modifier.padding(top = 7.dp),
+                                        color = colors.ink,
+                                        fontSize = 13.5.sp,
+                                        lineHeight = 18.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        if (progress.watched > 0) "看到第 ${progress.watched} 集 · ${progress.total} 集"
+                                        else "${progress.total} 集",
+                                        Modifier.padding(top = 4.dp),
+                                        color = colors.muted,
+                                        fontSize = 12.sp,
+                                    )
+                                    if (progress.watched > 0) {
+                                        Box(Modifier.padding(top = 6.dp)) {
+                                            EpisodeRail(progress.total, progress.watched, RailRailStyle.Small)
+                                        }
+                                    }
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    if (state.category.loadingMore) item { RailLoadingLine() }
+                }
+            }
+        }
+
+        if (showFilters) ModalBottomSheet(
+            onDismissRequest = { model.discardBrowseDraft(); showFilters = false },
+        ) {
+            FilterSheetContent(state, model) { showFilters = false }
+        }
+    }
+}
+
 @Composable
 fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel) {
     val card = state.selectedCard ?: return
@@ -1633,6 +1737,33 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
             contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
         ) {
             item { RailTopBar(if (history) "历史" else "追更", "${entries.size} 部") }
+            item {
+                // 两个页签就在页内切换:底栏只有一个「追更」入口,历史不该只能靠底栏绕进来。
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    listOf(false to "追更", true to "历史").forEach { (isHistory, label) ->
+                        val active = history == isHistory
+                        Column(
+                            Modifier.clickable { model.selectTab(if (isHistory) AppTab.HISTORY else AppTab.FAVORITES) }
+                                .testTag(if (isHistory) "rail_history" else "rail_favorites"),
+                        ) {
+                            Text(
+                                label,
+                                color = if (active) colors.ink else colors.muted,
+                                fontSize = 15.sp,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                            Box(
+                                Modifier.padding(top = 4.dp).fillMaxWidth().height(2.dp)
+                                    .background(if (active) colors.brand else Color.Transparent),
+                            )
+                        }
+                    }
+                }
+            }
             item {
                 RailSummaryLine(
                     if (entries.isEmpty()) "还没有记录"

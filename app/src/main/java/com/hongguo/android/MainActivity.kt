@@ -178,7 +178,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
                                     AppThemeStyle.GAZETTE -> GazetteTheater(state, model)
-                                    AppThemeStyle.RAIL -> RailLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.RAIL -> RailDiscover(tabState, model)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)

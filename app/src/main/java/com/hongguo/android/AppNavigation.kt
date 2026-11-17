@@ -121,7 +121,9 @@ internal fun AppNavigation(selected: AppTab, onSelect: (AppTab) -> Unit, modifie
     fun select(tab: AppTab) {
         keyboard?.hide()
         focus.clearFocus()
-        currentOnSelect(if (tab == AppTab.FAVORITES) AppTab.HISTORY else tab)
+        // 集刻度的「追更」就该进收藏:它同时把这个底栏入口当成进入追更的唯一门。
+        currentOnSelect(if (tab == AppTab.FAVORITES && style == AppThemeStyle.RAIL) AppTab.FAVORITES
+            else if (tab == AppTab.FAVORITES) AppTab.HISTORY else tab)
     }
     // Drag along the bar to move the selection between tabs (a tick per tab); lifting the finger switches to it.
     var dragIndex by remember { mutableStateOf<Int?>(null) }

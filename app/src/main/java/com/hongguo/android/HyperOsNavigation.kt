@@ -214,7 +214,9 @@ internal fun LiquidGlassNavigationBar(
         keyboard?.hide()
         focus.clearFocus()
         val tab = currentTabs[index].tab
-        currentOnSelect(if (tab == AppTab.FAVORITES) AppTab.HISTORY else tab)
+        // 集刻度的追更进收藏,其它主题的片单仍进历史(见 AppNavigation 同处注释)。
+        currentOnSelect(if (tab == AppTab.FAVORITES && style == AppThemeStyle.RAIL) AppTab.FAVORITES
+            else if (tab == AppTab.FAVORITES) AppTab.HISTORY else tab)
     }
 
     val glass = rememberGraphicsLayer()
