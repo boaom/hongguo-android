@@ -154,7 +154,7 @@ class MainActivity : ComponentActivity() {
                                 AppThemeStyle.CARDS -> CardsDetail(detailState, model, accountModel)
                                 AppThemeStyle.PLAYBILL -> PlaybillDetail(detailState, model, accountModel)
                                 AppThemeStyle.GAZETTE -> GazetteDetail(detailState, model, accountModel)
-                                AppThemeStyle.RAIL -> RailDetail(dark = dark || feedDark)
+                                AppThemeStyle.RAIL -> RailDetail(detailState, model, accountModel)
                                 AppThemeStyle.WARM -> DetailScreen(detailState, model, accountModel)
                             }
                             else if (key.startsWith("detail_")) Unit
@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsHome(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillHome(state, model)
                                     AppThemeStyle.GAZETTE -> GazetteHome(state, model)
-                                    AppThemeStyle.RAIL -> RailHome(dark = dark || feedDark)
+                                    AppThemeStyle.RAIL -> RailHome(state, model)
                                     AppThemeStyle.WARM -> {
                                         BrandHeader()
                                         HomeScreen(state, model)
@@ -178,7 +178,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
                                     AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
                                     AppThemeStyle.GAZETTE -> GazetteTheater(state, model)
-                                    AppThemeStyle.RAIL -> RailLibrary(dark = dark || feedDark)
+                                    AppThemeStyle.RAIL -> RailLibrary(tabState, model, accountModel)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)
@@ -189,7 +189,7 @@ class MainActivity : ComponentActivity() {
                                     AppThemeStyle.CARDS -> CardsLibrary(tabState, model, accountModel)
                                     AppThemeStyle.PLAYBILL -> PlaybillLibrary(tabState, model, accountModel)
                                     AppThemeStyle.GAZETTE -> GazetteLibrary(tabState, model, accountModel)
-                                    AppThemeStyle.RAIL -> RailLibrary(dark = dark || feedDark)
+                                    AppThemeStyle.RAIL -> RailLibrary(tabState, model, accountModel)
                                     AppThemeStyle.WARM -> LibraryScreen(tabState, model, accountModel)
                                 }
                                 AppTab.MINE -> MyScreen(state, model, updateState, updateModel,

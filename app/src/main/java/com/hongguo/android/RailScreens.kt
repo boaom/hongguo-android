@@ -64,6 +64,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -127,6 +135,20 @@ enum class RailRailStyle(
  * 「只看了极少数集」——此时点亮 1 根会让视觉比例略高于真实值（1/1000 显示成 1/60），
  * 这是有意的：一根灰都没有会读成「完全没开始」，比轻微的提前更误导。
  */
+/** 刻度标尺的 5 个锚点，随总集数等分。total<=0 时只给 "1"。 */
+internal fun railScaleLabels(total: Int): List<String> {
+    if (total <= 1) return listOf("1")
+    val steps = 4
+    val labels = mutableListOf<String>()
+    labels += "1"
+    for (i in 1..steps) {
+        val v = (total.toLong() * i / steps).toInt().coerceIn(1, total)
+        val text = if (i == steps) total.toString() else v.toString()
+        if (labels.last() != text) labels += text
+    }
+    return labels
+}
+
 internal fun railWatchedTicks(total: Int, watched: Int, shown: Int): Int = when {
     shown <= 0 || total <= 0 || watched <= 0 -> 0
     watched >= total -> shown
@@ -172,29 +194,31 @@ fun EpisodeRail(total: Int, watched: Int, style: RailRailStyle = RailRailStyle.N
     }
 }
 
-private data class RailDrama(
-    val title: String,
-    val total: Int,
-    val watched: Int,
-    val position: String,
-    val poster: String,
-)
+/**
+ * 刻度要的两个数：总集数与已看集数。
+ *
+ * <p>[watched] 来自 {@link LibraryEntry.episodeIndex}（收藏/历史里按 card.id 查），没有记录就是 0 ——
+ * 也就是「一集都没看」，刻度全灰。这正是这套主题的语义，不需要额外状态。
+ */
+private data class RailProgress(val total: Int, val watched: Int) {
+    val remaining: Int get() = (total - watched).coerceAtLeast(0)
+    val nextEpisode: Int get() = (watched + 1).coerceIn(1, total.coerceAtLeast(1))
+}
 
-private val RailDramas = listOf(
-    RailDrama("装穷提亲，娶到全家嫌弃的她", 80, 3, "01:30", "zhuangqiong"),
-    RailDrama("灵葫仙缘：葫中藏尽世间米", 81, 41, "02:10", "lingmeng"),
-    RailDrama("和离后我带女儿横扫魔域", 1000, 88, "02:02", "heli"),
-    RailDrama("读心嫡女捡了个吃瓜夫君", 76, 30, "01:55", "duxin"),
-    RailDrama("末世轮回：我以尸化神明", 102, 17, "01:58", "moshi-big"),
-    RailDrama("秦医生，搭个伙", 64, 8, "01:52", "qinyisheng"),
-    RailDrama("装疯嫡女，权倾世子心", 90, 3, "01:48", "zhuangfeng"),
-)
+/** 在收藏与历史里找这部剧的进度；两处都没有返回 watched = 0。 */
+private fun railProgressOf(card: DramaCard, state: HongguoUiState): RailProgress {
+    val entry = state.favorites.firstOrNull { it.card.id == card.id }
+        ?: state.history.firstOrNull { it.card.id == card.id }
+    return RailProgress(total = card.episodeCount, watched = entry?.episodeIndex ?: 0)
+}
 
-private val RailLibraryDramas = listOf(RailDramas[0], RailDramas[1], RailDramas[2], RailDramas[4])
-
-private fun railRemaining(drama: RailDrama): Int = (drama.total - drama.watched).coerceAtLeast(0)
-
-private fun railNextEpisode(drama: RailDrama): Int = (drama.watched + 1).coerceIn(1, drama.total)
+/** 从详情算进度：总集数用实际返回的集数（比列表页的 episodeCount 更可信）。 */
+private fun railProgressOfDetail(card: DramaCard, detail: DramaDetail?, state: HongguoUiState): RailProgress {
+    val entry = state.favorites.firstOrNull { it.card.id == card.id }
+        ?: state.history.firstOrNull { it.card.id == card.id }
+    val total = detail?.episodes?.size?.takeIf { it > 0 } ?: card.episodeCount
+    return RailProgress(total = total, watched = entry?.episodeIndex ?: 0)
+}
 
 private fun railDuration(episodes: Int): String {
     val minutes = episodes.coerceAtLeast(0) * 2
@@ -1096,21 +1120,12 @@ private object RailPosterDecoder {
 
 @Composable
 private fun RailPoster(
-    drama: RailDrama,
+    card: DramaCard,
     modifier: Modifier,
     corner: Dp = 10.dp,
 ) {
-    val bitmap = remember(drama.poster) { RailPosterDecoder.bitmap(drama.poster) }
-    Box(modifier.clip(RoundedCornerShape(corner)).background(LocalRailColors.current.hair)) {
-        bitmap?.let {
-            Image(
-                bitmap = it.asImageBitmap(),
-                contentDescription = drama.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        }
-    }
+    // 封面走 Coil（与其它五套主题同一条链路），不再内嵌 base64。
+    Cover(card.cover, card.title, modifier.clip(RoundedCornerShape(corner)))
 }
 
 @Composable
@@ -1134,6 +1149,44 @@ private fun RailSummaryLine(label: String, value: String) {
     ) {
         Text(label, color = LocalRailColors.current.muted, fontSize = 13.sp)
         Text(value, color = LocalRailColors.current.ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun RailLoadingLine() {
+    val colors = LocalRailColors.current
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CircularProgressIndicator(Modifier.size(14.dp), color = colors.brand, strokeWidth = 1.5.dp)
+        Text("正在取回数据", color = colors.muted, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun RailErrorLine(message: String, onRetry: () -> Unit) {
+    val colors = LocalRailColors.current
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(message, Modifier.weight(1f), color = colors.muted, fontSize = 13.sp, lineHeight = 19.sp)
+        Text("重试", Modifier.clickable(onClick = onRetry).testTag("rail_retry"),
+            color = colors.brand, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun RailEmptyLine(title: String, hint: String) {
+    val colors = LocalRailColors.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 28.dp)) {
+        Text(title, color = colors.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        if (hint.isNotBlank()) {
+            Text(hint, Modifier.padding(top = 6.dp), color = colors.muted, fontSize = 13.sp, lineHeight = 19.sp)
+        }
     }
 }
 
@@ -1171,7 +1224,7 @@ private fun RailPrimaryButton(text: String, modifier: Modifier = Modifier, onCli
 }
 
 @Composable
-private fun ContinueWatchingCard(drama: RailDrama, onPlay: (String) -> Unit) {
+private fun ContinueWatchingCard(card: DramaCard, progress: RailProgress, position: String, onPlay: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().testTag("rail_continue"),
         shape = RoundedCornerShape(14.dp),
@@ -1179,10 +1232,10 @@ private fun ContinueWatchingCard(drama: RailDrama, onPlay: (String) -> Unit) {
         shadowElevation = 1.dp,
     ) {
         Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            RailPoster(drama, Modifier.width(96.dp).height(162.dp))
+            RailPoster(card, Modifier.width(96.dp).height(162.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    drama.title,
+                    card.title,
                     color = LocalRailColors.current.ink,
                     fontSize = 17.sp,
                     lineHeight = 23.sp,
@@ -1191,25 +1244,29 @@ private fun ContinueWatchingCard(drama: RailDrama, onPlay: (String) -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    "第 ${drama.watched} 集 · ${drama.position} / 全 ${drama.total} 集",
+                    if (progress.watched > 0) "第 ${progress.watched} 集 · $position / 全 ${progress.total} 集"
+                    else "全 ${progress.total} 集 · $position",
                     Modifier.padding(top = 6.dp),
                     color = LocalRailColors.current.muted,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Box(Modifier.padding(top = 14.dp)) { EpisodeRail(drama.total, drama.watched) }
+                Box(Modifier.padding(top = 14.dp)) { EpisodeRail(progress.total, progress.watched) }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Text("看到第 ${drama.watched} 集", color = LocalRailColors.current.muted, fontSize = 12.sp)
-                    Text("还剩 ${railRemaining(drama)} 集", color = LocalRailColors.current.muted, fontSize = 12.sp)
+                    Text(
+                        if (progress.watched > 0) "看到第 ${progress.watched} 集" else "还没开始",
+                        color = LocalRailColors.current.muted, fontSize = 12.sp,
+                    )
+                    Text("还剩 ${progress.remaining} 集", color = LocalRailColors.current.muted, fontSize = 12.sp)
                 }
                 RailPrimaryButton(
-                    "继续看 · 第 ${railNextEpisode(drama)} 集",
+                    if (progress.watched > 0) "继续看 · 第 ${progress.nextEpisode} 集" else "从第 1 集开始",
                     Modifier.fillMaxWidth().padding(top = 12.dp),
-                ) { onPlay(drama.title) }
+                ) { onPlay() }
             }
         }
     }
@@ -1217,15 +1274,15 @@ private fun ContinueWatchingCard(drama: RailDrama, onPlay: (String) -> Unit) {
 
 @Composable
 private fun UpdateRow(
-    time: String,
-    drama: RailDrama,
-    railWatched: Int,
+    card: DramaCard,
+    progress: RailProgress,
+    updatedAt: String?,
     showDivider: Boolean,
-    onOpen: (String) -> Unit,
+    onOpen: () -> Unit,
 ) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable { onOpen(drama.title) }
-            .testTag("rail_update_$time"),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable(onClick = onOpen)
+            .testTag("rail_update_${card.id}"),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 10.dp),
@@ -1233,13 +1290,13 @@ private fun UpdateRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(Modifier.width(44.dp)) {
-                Text(time, color = LocalRailColors.current.ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(updatedAt ?: "更新", color = LocalRailColors.current.ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Text("待播", color = LocalRailColors.current.muted, fontSize = 10.sp)
             }
-            RailPoster(drama, Modifier.width(40.dp).height(54.dp), corner = 6.dp)
+            RailPoster(card, Modifier.width(40.dp).height(54.dp), corner = 6.dp)
             Column(Modifier.weight(1f)) {
                 Text(
-                    drama.title,
+                    card.title,
                     color = LocalRailColors.current.ink,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1247,12 +1304,12 @@ private fun UpdateRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    "第 ${drama.watched} 集 · ${drama.total} 集",
+                    if (progress.watched > 0) "看到第 ${progress.watched} 集 · ${progress.total} 集" else "${progress.total} 集",
                     Modifier.padding(top = 3.dp, bottom = 5.dp),
                     color = LocalRailColors.current.muted,
                     fontSize = 12.sp,
                 )
-                EpisodeRail(drama.total, railWatched, RailRailStyle.Small)
+                EpisodeRail(progress.total, progress.watched, RailRailStyle.Small)
             }
         }
         if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(LocalRailColors.current.hair))
@@ -1260,11 +1317,11 @@ private fun UpdateRow(
 }
 
 @Composable
-private fun RailFeaturedItem(drama: RailDrama, modifier: Modifier = Modifier, onOpen: (String) -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(10.dp)).clickable { onOpen(drama.title) }) {
-        RailPoster(drama, Modifier.fillMaxWidth().aspectRatio(3f / 4.2f))
+private fun RailFeaturedItem(card: DramaCard, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onOpen)) {
+        RailPoster(card, Modifier.fillMaxWidth().aspectRatio(3f / 4.2f))
         Text(
-            drama.title,
+            card.title,
             Modifier.padding(top = 7.dp),
             color = LocalRailColors.current.ink,
             fontSize = 13.5.sp,
@@ -1273,45 +1330,84 @@ private fun RailFeaturedItem(drama: RailDrama, modifier: Modifier = Modifier, on
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text("${drama.total} 集", Modifier.padding(top = 4.dp), color = LocalRailColors.current.muted, fontSize = 12.sp)
+        Text("${card.episodeCount} 集", Modifier.padding(top = 4.dp), color = LocalRailColors.current.muted, fontSize = 12.sp)
     }
 }
 
 @Composable
-fun RailHome(
-    dark: Boolean = false,
-    onPlay: (String) -> Unit = {},
-    onOpen: (String) -> Unit = {},
-) {
-    RailTheme(dark) {
-        val colors = LocalRailColors.current
-        val featured = RailDramas[0]
-        LazyColumn(
-            Modifier.fillMaxSize().background(colors.surface).testTag("rail_home"),
-            contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
-        ) {
-            item { RailTopBar("红果", "今晚") }
-            item { RailSummaryLine("今晚还能看", railDuration(railRemaining(featured))) }
-            item { Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)) { ContinueWatchingCard(featured, onPlay) } }
-            item {
-                Column(Modifier.padding(horizontal = 20.dp).padding(top = 24.dp)) {
-                    RailSectionTitle("今晚更新", "全部 ›", "3 部")
-                    UpdateRow("21:00", RailDramas[1], 40, true, onOpen)
-                    UpdateRow("22:00", RailDramas[2], 87, true, onOpen)
-                    UpdateRow("22:30", RailDramas[3], 29, false, onOpen)
-                }
+fun RailHome(state: HongguoUiState, model: HongguoViewModel) {
+    val colors = LocalRailColors.current
+    val items = state.home.items
+    val featured = items.firstOrNull()
+    val updates = if (items.size > 1) items.drop(1).take(3) else emptyList()
+    // 精选用同池的另一段，避免和上面两条重复；首页只有一页数据时退回全部。
+    val picks = items.drop(4).take(3).ifEmpty { items.take(3) }
+    val list = rememberLazyListState()
+    LoadAheadEffect(state.home, { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 },
+        { list.layoutInfo.totalItemsCount }, onLoad = model::loadMoreHome)
+
+    LazyColumn(
+        Modifier.fillMaxSize().background(colors.surface).testTag("rail_home"),
+        state = list,
+        contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
+    ) {
+        item { RailTopBar("红果", "今晚") }
+
+        when {
+            featured == null && state.home.loading -> item { RailLoadingLine() }
+            featured == null && state.home.error != null -> item {
+                RailErrorLine(state.home.error!!, onRetry = model::loadMoreHome)
             }
-            item {
-                Column(Modifier.padding(horizontal = 20.dp).padding(top = 24.dp)) {
-                    RailSectionTitle("热度精选", "换一批 ↻")
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        listOf(RailDramas[5], RailDramas[4], RailDramas[6]).forEach { drama ->
-                            RailFeaturedItem(drama, Modifier.weight(1f), onOpen)
+            featured == null -> item { RailEmptyLine("今晚还没有可看的剧", "换个频道看看") }
+            else -> {
+                val featuredProgress = railProgressOf(featured, state)
+                item {
+                    RailSummaryLine(
+                        if (featuredProgress.watched > 0) "今晚还能看" else "从这一部开始",
+                        railDuration(featuredProgress.remaining),
+                    )
+                }
+                item {
+                    Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp)) {
+                        ContinueWatchingCard(featured, featuredProgress, featured.summary.take(0).ifEmpty { "每集约 2 分钟" }) {
+                            model.openDrama(featured)
                         }
                     }
                 }
             }
         }
+
+        if (updates.isNotEmpty()) {
+            item {
+                Column(Modifier.padding(horizontal = 20.dp).padding(top = 24.dp)) {
+                    RailSectionTitle("今晚更新", "全部 ›", "${updates.size} 部")
+                    updates.forEachIndexed { index, card ->
+                        UpdateRow(
+                            card = card,
+                            progress = railProgressOf(card, state),
+                            updatedAt = null,
+                            showDivider = index < updates.lastIndex,
+                            onOpen = { model.openDrama(card) },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (picks.isNotEmpty()) {
+            item {
+                Column(Modifier.padding(horizontal = 20.dp).padding(top = 24.dp)) {
+                    RailSectionTitle("热度精选", "换一批 ↻")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        picks.forEach { card ->
+                            RailFeaturedItem(card, Modifier.weight(1f)) { model.openDrama(card) }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (state.home.loadingMore) item { RailLoadingLine() }
     }
 }
 
@@ -1321,7 +1417,8 @@ private fun RailEpisodeCell(episode: Int, watched: Int, onClick: () -> Unit) {
     val current = episode == watched
     val seen = episode < watched
     Box(
-        Modifier.height(48.dp).clip(RoundedCornerShape(8.dp))
+        // fillMaxWidth 不能省:外层是 Box(weight(1f)) 的 wrapContent,只给 height 会让格子缩成文字宽度
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
             .background(if (current) colors.brand else colors.card)
             .border(1.dp, if (current) colors.brand else colors.hair, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick).testTag("rail_episode_$episode"),
@@ -1337,121 +1434,144 @@ private fun RailEpisodeCell(episode: Int, watched: Int, onClick: () -> Unit) {
 }
 
 @Composable
-fun RailDetail(
-    dark: Boolean = false,
-    onBack: () -> Unit = {},
-    onPlay: (String) -> Unit = {},
-    onEpisode: (Int) -> Unit = {},
-) {
-    RailTheme(dark) {
-        val colors = LocalRailColors.current
-        val drama = RailDramas[0]
-        Column(Modifier.fillMaxSize().background(colors.surface).testTag("rail_detail")) {
-            Row(
-                Modifier.fillMaxWidth().statusBarsPadding().height(48.dp).padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack, modifier = Modifier.testTag("rail_detail_back")) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = colors.ink)
-                }
-                Text(
-                    drama.title,
-                    Modifier.weight(1f),
-                    color = colors.muted,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.width(48.dp))
+fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel) {
+    val card = state.selectedCard ?: return
+    val colors = LocalRailColors.current
+    val detail = state.detail
+    val progress = railProgressOfDetail(card, detail, state)
+    val episodes = detail?.episodes.orEmpty()
+
+    Column(Modifier.fillMaxSize().background(colors.surface).testTag("rail_detail")) {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = model::closeDetail, modifier = Modifier.testTag("rail_detail_back")) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = colors.ink)
             }
-            LazyColumn(
-                Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 20.dp),
-            ) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        RailPoster(drama, Modifier.width(104.dp).height(147.dp))
-                        Column(Modifier.weight(1f).padding(top = 2.dp)) {
-                            Text(
-                                drama.title,
-                                color = colors.ink,
-                                fontSize = 21.sp,
-                                lineHeight = 27.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                "全 ${drama.total} 集 · 都市 · 每集 2 分钟\n更新至第 12 集 · 4.2 亿次播放",
-                                Modifier.padding(top = 7.dp),
-                                color = colors.muted,
-                                fontSize = 13.sp,
-                                lineHeight = 22.sp,
-                            )
-                            Text(
-                                "更新中",
-                                Modifier.padding(top = 8.dp).border(1.dp, colors.brand, RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 1.dp),
-                                color = colors.brand,
-                                fontSize = 11.sp,
-                            )
-                        }
-                    }
-                }
-                item {
-                    Column(Modifier.padding(top = 20.dp)) {
-                        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
-                            Text("看到第 ${drama.watched} 集", color = colors.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                " · 还剩 ${railRemaining(drama)} 集，${railDuration(railRemaining(drama))}",
-                                color = colors.muted,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        EpisodeRail(drama.total, drama.watched, RailRailStyle.Large)
-                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            listOf("1", "20", "40", "60", "80").forEach {
-                                Text(it, color = colors.muted, fontSize = 12.sp)
+            Text(
+                card.title,
+                Modifier.weight(1f),
+                color = colors.muted,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp).plusNavClearance(),
+        ) {
+            item {
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    RailPoster(card, Modifier.width(104.dp).height(147.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            card.title,
+                            color = colors.ink,
+                            fontSize = 21.sp,
+                            lineHeight = 27.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            buildString {
+                                append("全 ${progress.total} 集")
+                                if (progress.watched > 0) append(" · 看到第 ${progress.watched} 集")
+                                append(" · 每集约 2 分钟")
+                            },
+                            Modifier.padding(top = 7.dp),
+                            color = colors.muted,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                        )
+                        if (episodes.isNotEmpty()) {
+                            Surface(
+                                Modifier.padding(top = 8.dp),
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, colors.brand),
+                            ) {
+                                Text(
+                                    "已更新 ${episodes.size} 集",
+                                    Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                    color = colors.brand,
+                                    fontSize = 11.sp,
+                                )
                             }
                         }
                     }
                 }
-                item {
-                    Column(Modifier.padding(top = 18.dp)) {
-                        RailSectionTitle("选集", "更新至 12")
-                        repeat(2) { row ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(bottom = if (row == 0) 8.dp else 0.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                (1..6).forEach { column ->
-                                    val episode = row * 6 + column
-                                    Box(Modifier.weight(1f)) {
-                                        RailEpisodeCell(episode, drama.watched) { onEpisode(episode) }
+            }
+
+            item {
+                Column(Modifier.padding(top = 20.dp)) {
+                    Text(
+                        buildString {
+                            if (progress.watched > 0) append("看到第 ${progress.watched} 集")
+                            else append("还没开始")
+                            append(" · 还剩 ${progress.remaining} 集，${railDuration(progress.remaining)}")
+                        },
+                        color = colors.muted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Box(Modifier.padding(top = 8.dp)) {
+                        EpisodeRail(progress.total, progress.watched, RailRailStyle.Large)
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        railScaleLabels(progress.total).forEach {
+                            Text(it, color = colors.muted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            item {
+                Column(Modifier.padding(top = 18.dp)) {
+                    RailSectionTitle("选集", if (episodes.isNotEmpty()) "已更新 ${episodes.size} 集" else "")
+                    when {
+                        state.loadingDetail && episodes.isEmpty() -> RailLoadingLine()
+                        state.detailError != null && episodes.isEmpty() ->
+                            RailErrorLine(state.detailError, onRetry = { model.retryDetails() })
+                        episodes.isEmpty() -> RailEmptyLine("暂无可用集数", "稍后再试")
+                        else -> {
+                            // 真实集数决定网格：每行 6 格，行数 = ceil(total/6)。
+                            val perRow = 6
+                            val rows = (episodes.size + perRow - 1) / perRow
+                            repeat(rows) { row ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(bottom = if (row == rows - 1) 0.dp else 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    repeat(perRow) { column ->
+                                        val index = row * perRow + column
+                                        if (index < episodes.size) {
+                                            val episode = episodes[index]
+                                            Box(Modifier.weight(1f)) {
+                                                RailEpisodeCell(episode.index, progress.watched) {
+                                                    model.playEpisode(episode.index)
+                                                }
+                                            }
+                                        } else {
+                                            Spacer(Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
                         }
-                        Text(
-                            "明天 12:00 更新第 13 集",
-                            Modifier.padding(top = 10.dp),
-                            color = colors.muted,
-                            fontSize = 12.sp,
-                        )
                     }
                 }
+            }
+
+            if (card.summary.isNotBlank()) {
                 item {
                     Column(Modifier.padding(top = 20.dp)) {
-                        Text("简介", color = colors.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("简介", color = colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "他装成穷小子去提亲，全村人都笑她嫁了个废物。三年后，村口停满了黑色的车。",
-                            Modifier.padding(top = 5.dp),
+                            card.summary,
+                            Modifier.padding(top = 6.dp),
                             color = colors.muted,
                             fontSize = 15.sp,
                             lineHeight = 23.sp,
@@ -1459,73 +1579,48 @@ fun RailDetail(
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().background(colors.card).border(1.dp, colors.hair).padding(20.dp)) {
-                RailPrimaryButton("播放第 ${railNextEpisode(drama)} 集 · 02:10", Modifier.fillMaxWidth()) {
-                    onPlay(drama.title)
-                }
-            }
         }
+
+        RailPrimaryButton(
+            buildString {
+                if (progress.watched > 0) append("播放第 ${progress.nextEpisode} 集")
+                else append("从第 1 集开始")
+            },
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp).navigationBarsPadding(),
+        ) { model.playEpisode(progress.nextEpisode) }
     }
 }
 
 @Composable
-private fun RailLibraryRow(drama: RailDrama, showDivider: Boolean, onOpen: (String) -> Unit) {
-    val colors = LocalRailColors.current
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable { onOpen(drama.title) }
-            .testTag("rail_library_${drama.total}"),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            RailPoster(drama, Modifier.width(56.dp).height(76.dp), corner = 8.dp)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    drama.title,
-                    color = colors.ink,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "第 ${drama.watched} 集 · ${drama.position} / ${drama.total} 集",
-                    Modifier.padding(top = 4.dp),
-                    color = colors.muted,
-                    fontSize = 12.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Box(Modifier.padding(top = 8.dp)) { EpisodeRail(drama.total, drama.watched, RailRailStyle.Small) }
-                Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("还剩 ${railRemaining(drama)} 集", color = colors.muted, fontSize = 12.sp)
-                    Text(railDuration(railRemaining(drama)), color = colors.muted, fontSize = 12.sp)
-                }
-            }
-        }
-        if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hair))
-    }
-}
-
-@Composable
-fun RailLibrary(
-    dark: Boolean = false,
-    onOpen: (String) -> Unit = {},
-) {
-    RailTheme(dark) {
+fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel) {
+    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
         val colors = LocalRailColors.current
+        val history = state.tab == AppTab.HISTORY
+        val entries = if (history) state.history else state.favorites
+        val totalEpisodes = entries.sumOf { it.card.episodeCount }
+
         LazyColumn(
             Modifier.fillMaxSize().background(colors.surface).testTag("rail_library"),
             contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
         ) {
-            item { RailTopBar("追更", "4 部在追") }
-            item { RailSummaryLine("今天更新 2 部", "共 1,263 集") }
+            item { RailTopBar(if (history) "历史" else "追更", "${entries.size} 部") }
             item {
-                Column(Modifier.padding(horizontal = 20.dp).padding(top = 8.dp)) {
-                    RailLibraryDramas.forEachIndexed { index, drama ->
-                        RailLibraryRow(drama, index < RailLibraryDramas.lastIndex, onOpen)
-                    }
+                RailSummaryLine(
+                    if (entries.isEmpty()) "还没有记录"
+                    else "共 ${entries.size} 部 · ${totalEpisodes} 集",
+                    if (entries.isEmpty()) "" else "每集约 2 分钟",
+                )
+            }
+            if (entries.isEmpty()) {
+                item {
+                    RailEmptyLine(
+                        if (history) "还没有播放记录" else "还没有追更的剧",
+                        if (history) "看过的剧会自动出现在这里" else "在首页点开一部剧，收藏后会出现在这里",
+                    )
+                }
+            } else {
+                itemsIndexed(entries, key = { _, entry -> entry.card.id }) { index, entry ->
+                    RailLibraryRow(entry, index < entries.lastIndex) { model.openLibrary(entry) }
                 }
             }
         }
@@ -1533,10 +1628,88 @@ fun RailLibrary(
 }
 
 @Composable
-private fun RailMineStat(value: String, label: String, tag: String, onClick: () -> Unit) {
+fun RailMine(
+    state: HongguoUiState,
+    model: HongguoViewModel,
+    updateState: UpdateUiState,
+    updateModel: UpdateViewModel,
+    accountName: String? = null,
+    accountStatus: String = "登录后查看手机片单",
+    accountAvatar: String? = null,
+    onAccount: () -> Unit = { model.selectTab(AppTab.ACCOUNT) },
+    openSettings: () -> Unit = { model.selectTab(AppTab.SETTINGS) },
+) {
+    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+        val colors = LocalRailColors.current
+        LazyColumn(
+            Modifier.fillMaxSize().background(colors.surface).testTag("rail_mine"),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp).plusNavClearance(),
+        ) {
+            item { RailTopBar("我的", accountName ?: "本机用户") }
+            item {
+                Surface(
+                    Modifier.fillMaxWidth().padding(top = 16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = colors.card,
+                ) {
+                    Row(
+                        Modifier.padding(16.dp).clickable(onClick = onAccount),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(56.dp).clip(CircleShape).background(colors.hair),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (accountAvatar.isNullOrBlank()) {
+                                Icon(Icons.Outlined.PersonOutline, accountName ?: "本机用户",
+                                    tint = colors.muted, modifier = Modifier.size(30.dp))
+                            } else {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current).data(accountAvatar).crossfade(true).build(),
+                                    contentDescription = accountName,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            }
+                        }
+                        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                            Text(accountName ?: "本机用户", color = colors.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                            Text(accountStatus, Modifier.padding(top = 4.dp), color = colors.muted, fontSize = 12.sp)
+                        }
+                        Icon(Icons.Outlined.ChevronRight, "账号", tint = colors.muted, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RailMineStat("${state.favorites.size}", "追更") { model.selectTab(AppTab.FAVORITES) }
+                    Box(Modifier.width(1.dp).height(30.dp).background(colors.hair))
+                    RailMineStat("${state.history.size}", "历史") { model.selectTab(AppTab.PLAY_HISTORY) }
+                }
+            }
+            item {
+                Column(Modifier.fillMaxWidth()) {
+                    RailMenuRow(Icons.Outlined.BookmarkBorder, "我的追更", "收藏的剧与进度", "my_favorites") {
+                        model.selectTab(AppTab.FAVORITES)
+                    }
+                    RailMenuRow(Icons.Outlined.History, "播放历史", "本机的观看记录", "my_history") {
+                        model.selectTab(AppTab.PLAY_HISTORY)
+                    }
+                    RailMenuRow(Icons.Outlined.Settings, "设置", "主题与播放偏好", "my_settings", openSettings)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RailMineStat(value: String, label: String, onClick: () -> Unit) {
     Column(
-        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp).testTag(tag),
+        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(value, color = LocalRailColors.current.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -1555,98 +1728,15 @@ private fun RailMenuRow(
     val colors = LocalRailColors.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)
-            .padding(vertical = 14.dp).testTag(tag),
+            .testTag(tag).padding(horizontal = 4.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
+        Icon(icon, title, tint = colors.muted, modifier = Modifier.size(20.dp))
         Column(Modifier.weight(1f)) {
             Text(title, color = colors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, Modifier.padding(top = 3.dp), color = colors.muted, fontSize = 12.sp)
+            Text(subtitle, Modifier.padding(top = 2.dp), color = colors.muted, fontSize = 12.sp)
         }
-        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
-    }
-    Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hair))
-}
-
-@Composable
-fun RailMine(
-    dark: Boolean = false,
-    followingCount: Int = RailLibraryDramas.size,
-    historyCount: Int = 0,
-    accountName: String? = null,
-    accountStatus: String = "",
-    accountAvatar: String? = null,
-    onFollowing: () -> Unit = {},
-    onHistory: () -> Unit = {},
-    onAccount: () -> Unit = {},
-    onSettings: () -> Unit = {},
-) {
-    RailTheme(dark) {
-        val colors = LocalRailColors.current
-        LazyColumn(
-            Modifier.fillMaxSize().background(colors.surface).testTag("rail_mine"),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp).plusNavClearance(),
-        ) {
-            item { RailTopBar("我的", "本机片单") }
-            item {
-                Surface(
-                    onClick = onAccount,
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("my_account_card"),
-                    shape = RoundedCornerShape(14.dp),
-                    color = colors.card,
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(56.dp).clip(CircleShape).background(colors.hair),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(Icons.Outlined.PersonOutline, accountName ?: "本机用户", tint = colors.muted, modifier = Modifier.size(30.dp))
-                            AccountAvatarImage(accountAvatar)
-                        }
-                        Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                            Text(accountName ?: "本机用户", color = colors.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                accountStatus.ifBlank { "记录保存在这台设备上" },
-                                Modifier.padding(top = 4.dp),
-                                color = colors.muted,
-                                fontSize = 12.sp,
-                            )
-                        }
-                        Icon(Icons.Outlined.ChevronRight, "账号", tint = colors.muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RailMineStat("${followingCount.coerceAtLeast(0)}", "追更", "my_favorites", onFollowing)
-                    Box(Modifier.width(1.dp).height(30.dp).background(colors.hair))
-                    RailMineStat("${historyCount.coerceAtLeast(0)}", "历史", "my_history", onHistory)
-                }
-            }
-            item {
-                Column(Modifier.fillMaxWidth()) {
-                    RailMenuRow(
-                        Icons.Outlined.BookmarkBorder,
-                        "我的追更",
-                        "${followingCount.coerceAtLeast(0)} 部在追 · 继续按集观看",
-                        "my_following",
-                        onFollowing,
-                    )
-                    RailMenuRow(
-                        Icons.Outlined.History,
-                        "观看历史",
-                        if (historyCount > 0) "本机有 $historyCount 条观看记录" else "本机暂无观看历史",
-                        "my_history_menu",
-                        onHistory,
-                    )
-                    RailMenuRow(Icons.Outlined.Settings, "设置", "主题与播放偏好", "my_settings", onSettings)
-                }
-            }
-        }
+        Icon(Icons.Outlined.ChevronRight, null, tint = colors.muted, modifier = Modifier.size(16.dp))
     }
 }

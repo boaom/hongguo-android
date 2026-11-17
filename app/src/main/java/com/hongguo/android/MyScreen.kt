@@ -100,12 +100,9 @@ internal fun MyScreen(state: HongguoUiState, model: HongguoViewModel,
         // 集刻度 gets its own 订阅人 page: the rail carries over from 追更.
         AppThemeStyle.RAIL -> {
             RailMine(
-                dark = false,
-                followingCount = 4,
+                state = state, model = model, updateState = updateState, updateModel = updateModel,
                 accountName = accountName, accountStatus = accountStatus, accountAvatar = accountAvatar,
-                onFollowing = { model.selectTab(AppTab.FAVORITES) },
-                onHistory = { model.selectTab(AppTab.PLAY_HISTORY) },
-                onAccount = onAccount, onSettings = openSettings,
+                onAccount = onAccount, openSettings = openSettings,
             )
             return
         }
