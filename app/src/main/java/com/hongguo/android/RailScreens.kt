@@ -67,7 +67,7 @@ import kotlin.math.roundToInt
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
- * 本文件暂时自带 palette；t2 接线时只需在 LocalRailColors 处桥接 AppTheme，不改屏幕结构。
+ * 色值唯一真相源是 AppTheme.kt 的 RailPalette / RailDarkPalette，本文件只做字段名桥接。
  * ------------------------------------------------------------------------------------------- */
 
 @Immutable
@@ -80,14 +80,17 @@ internal data class RailColors(
     val brand: Color,
 )
 
-internal val RailLightColors = RailColors(
-    surface = Color(0xFFF3F4F6), card = Color(0xFFFFFFFF), ink = Color(0xFF16181B),
-    muted = Color(0xFF63676D), hair = Color(0xFFE2E4E8), brand = Color(0xFFC8102E),
-)
+/** 由 AppTheme 的 RailPalette / RailDarkPalette 桥接：色值只在那两处定义，这里不再复制一份。 */
+internal val RailLightColors: RailColors = railColorsFrom(com.hongguo.android.RailPalette)
+internal val RailDarkColors: RailColors = railColorsFrom(com.hongguo.android.RailDarkPalette)
 
-internal val RailDarkColors = RailColors(
-    surface = Color(0xFF0F1113), card = Color(0xFF17191C), ink = Color(0xFFF3F4F6),
-    muted = Color(0xFFA0A4AB), hair = Color(0xFF262A2E), brand = Color(0xFFE2263A),
+private fun railColorsFrom(p: HongguoPalette) = RailColors(
+    surface = p.canvas,
+    card = p.card,
+    ink = p.ink,
+    muted = p.muted,
+    hair = p.line,
+    brand = p.accent,
 )
 
 internal val LocalRailColors = staticCompositionLocalOf { RailLightColors }
@@ -114,6 +117,22 @@ enum class RailRailStyle(
  * 一部剧的观看位置尺。超容量时每格代表 ceil(total / shown) 集，红色根数按观看比例抽样；
  * 当前集是最后一个红色刻度。宽度完全等分，不为单根设置最小宽度，避免窄屏溢出。
  */
+/**
+ * 抽样后该点亮几根刻度。
+ *
+ * <p>向下取整并至少留 1 根：「看过」不能显示成「一格都没看」；同时避免进位把「差 1 集看完」
+ * 画成满格红（1000 集看 999 集时 59/60 才是实况）。
+ *
+ * <p>抽稀时每格代表 `ceil(total/shown)` 集，视觉比例与真实进度最多差一格。唯一的例外是
+ * 「只看了极少数集」——此时点亮 1 根会让视觉比例略高于真实值（1/1000 显示成 1/60），
+ * 这是有意的：一根灰都没有会读成「完全没开始」，比轻微的提前更误导。
+ */
+internal fun railWatchedTicks(total: Int, watched: Int, shown: Int): Int = when {
+    shown <= 0 || total <= 0 || watched <= 0 -> 0
+    watched >= total -> shown
+    else -> ((watched.toDouble() / total) * shown).toInt().coerceIn(1, shown - 1)
+}
+
 @Composable
 fun EpisodeRail(total: Int, watched: Int, style: RailRailStyle = RailRailStyle.Normal) {
     val colors = LocalRailColors.current
@@ -121,11 +140,7 @@ fun EpisodeRail(total: Int, watched: Int, style: RailRailStyle = RailRailStyle.N
     val safeWatched = if (safeTotal == 0) 0 else watched.coerceIn(0, safeTotal)
     val shown = minOf(safeTotal, style.capacity)
     val episodesPerTick = if (shown == 0) 0 else ceil(safeTotal.toDouble() / shown).toInt()
-    val watchedTicks = when {
-        shown == 0 || safeWatched <= 0 -> 0
-        safeWatched >= safeTotal -> shown
-        else -> (safeWatched.toDouble() / safeTotal * shown).roundToInt().coerceIn(1, shown)
-    }
+    val watchedTicks = railWatchedTicks(safeTotal, safeWatched, shown)
     val currentIndex = if (watchedTicks == 0) -1 else watchedTicks - 1
     val description = when {
         safeTotal == 0 -> "暂无剧集刻度"
@@ -1505,7 +1520,7 @@ fun RailLibrary(
             contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
         ) {
             item { RailTopBar("追更", "4 部在追") }
-            item { RailSummaryLine("今天更新 2 部", "共 1,203 集") }
+            item { RailSummaryLine("今天更新 2 部", "共 1,263 集") }
             item {
                 Column(Modifier.padding(horizontal = 20.dp).padding(top = 8.dp)) {
                     RailLibraryDramas.forEachIndexed { index, drama ->
