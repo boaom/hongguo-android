@@ -1,10 +1,6 @@
 package com.hongguo.android
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.Base64
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,7 +38,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,20 +45,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -72,6 +64,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.hongguo.account.AccountViewModel
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -1107,16 +1102,6 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "jry4EKdU07ZHI8JeAlueA+8N26hEYAA=",
 )
 
-private object RailPosterDecoder {
-    private val cache = mutableMapOf<String, Bitmap?>()
-
-    @Synchronized
-    fun bitmap(key: String): Bitmap? = cache.getOrPut(key) {
-        val encoded = RailPosterData[key] ?: return@getOrPut null
-        val bytes = Base64.decode(encoded, Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }
-}
 
 @Composable
 private fun RailPoster(
@@ -1588,6 +1573,50 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
             },
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp).navigationBarsPadding(),
         ) { model.playEpisode(progress.nextEpisode) }
+    }
+}
+
+
+@Composable
+private fun RailLibraryRow(entry: LibraryEntry, showDivider: Boolean, onOpen: () -> Unit) {
+    val colors = LocalRailColors.current
+    val card = entry.card
+    val progress = RailProgress(total = card.episodeCount, watched = entry.episodeIndex)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable(onClick = onOpen)
+            .testTag("rail_library_${card.id}"),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RailPoster(card, Modifier.width(56.dp).height(76.dp), corner = 8.dp)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    card.title,
+                    color = colors.ink,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (progress.watched > 0) "看到第 ${progress.watched} 集 / ${progress.total} 集"
+                    else "${progress.total} 集 · 还没开始",
+                    Modifier.padding(top = 4.dp),
+                    color = colors.muted,
+                    fontSize = 12.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Box(Modifier.padding(top = 8.dp)) { EpisodeRail(progress.total, progress.watched, RailRailStyle.Small) }
+                Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("还剩 ${progress.remaining} 集", color = colors.muted, fontSize = 12.sp)
+                    Text(railDuration(progress.remaining), color = colors.muted, fontSize = 12.sp)
+                }
+            }
+        }
+        if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hair))
     }
 }
 
