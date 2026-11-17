@@ -20,9 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,10 +33,8 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -126,7 +124,7 @@ fun EpisodeRail(total: Int, watched: Int, style: RailRailStyle = RailRailStyle.N
     val watchedTicks = when {
         shown == 0 || safeWatched <= 0 -> 0
         safeWatched >= safeTotal -> shown
-        else -> (safeWatched.toDouble() / safeTotal * shown).roundToInt().coerceIn(1, shown - 1)
+        else -> (safeWatched.toDouble() / safeTotal * shown).roundToInt().coerceIn(1, shown)
     }
     val currentIndex = if (watchedTicks == 0) -1 else watchedTicks - 1
     val description = when {
@@ -354,7 +352,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "AHCTAjT6PdMN88l4FaJ75VZ4lDNxMZpx+ux6Ra5tysrfB/qT+LeDW3wAYwdDAwU2z26thnR+C4hUAO/QAL73smWA+oFurHC0Q5LC"
         + "4z4fizv2PnzZ1yX7EQI6TbiFALo46m5QBt5qhjDkdiCOZEViD6AyAhD9tl50EgH/6P4QRrNSxkB27pfBTGbV23w1zC8v8ZP+GcMo"
         + "CvWgA3krprUtK0kQ2VnWfNTF1XT2lSCMqJeikPKuu0P6Ap+6aj9qpCxcnpi/lA4BJDy+ibubPma+Ys8jq1A7jLfMgjHt+h9tKxgq"
-        + "c0Se4luN46Ly9QAA".trimMargin(),
+        + "c0Se4luN46Ly9QAA",
     "lingmeng" to
         "UklGRhwiAABXRUJQVlA4IBAiAACQmACdASrAAAIBPqVGnUsmI6KhqrS8eMAUiUAYKlFrr+t3qmj15L8sAR3g723p63CvmW/Zn1S/"
         + "TZ/efSA6o3ejsYLk48oP3HhT5wvrUr5wt1Mvm36Czl9tvAafj2kEH2t8UD/Jj/4fNp9jewoZWdhL4Uwzwx5y1Urci79VMTuPmw4F"
@@ -472,7 +470,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "S8VZkqY2s8vRF5NA8/CoNdSKmqdqMXu2qtlcO8mkMEK3mZ8NoYb6xdiCQi/YC3R3tqhQMa0/Qetnwq8yGlVAQftYwUUADq/68qgW"
         + "dMOHEoFWWGrXd22BH4agEK6G2o0X8E7O/rug3YfFkhN41h9ADdzlsPt40YUx53T2C+IAMO+j10xYa42v9/A4Sz6APVQ1heg/c1+w"
         + "lFxncewTanXrsap6HOng8PNnMTH0m24UX4L3Y6FjibPWyE4xwP7NmqYpyHPnc1zYYCIhaHoXKUSau4AADYbQFaQU5SR0KQ6LP5gF"
-        + "lpaE+ULK8rGf+DE7xj5Qjb68JHKSi9OBem3SVPgYDMMmfnhwIAAAAA==".trimMargin(),
+        + "lpaE+ULK8rGf+DE7xj5Qjb68JHKSi9OBem3SVPgYDMMmfnhwIAAAAA==",
     "heli" to
         "UklGRoAxAABXRUJQVlA4IHQxAACwpwCdASrAAAIBPpE8l0ilo6IhNrb/2LASCWQAt3PfaxeT6MXkXwx+3dFPpenn+s7xPzT+ah5s"
         + "m/mb03kWUorg5+z8Dfx/6L/X/3b/Oen1ij9I/n//R/qfUf+Y/iv+j/kvSLvp+Xf+96h3unz8n3mnnoF/Bv4n9jvIq1a/f79V7A/6"
@@ -643,7 +641,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "iJavLR94pBU+6X8JgdotmOVaBwgADP/Gg6Ie/wYD0jFxjWNSGcbkjOYR3pjsQ1z2OBzWilz8nW9AXdLGZvqvDoyYX98VCZKt1Iux"
         + "S4jwg9BPoAQE6hShPjMJ9b80hF54s1nUJDvzaOFdTRAMwA1m+wD8e8qnyX6OUdPhOb+QW8w/4me63OzIUxLunzTKp9iWy0j3soBw"
         + "To4ETEXccN7X2K8YNJ0llJyGCLM/4M4PjSfq6c5cZDZIqVLNYaAARihxAEdLuAK0UkBQCMMCJMgatNn/SiAGUlPVgCx2UWsG8UaC"
-        + "UBAAAAA=".trimMargin(),
+        + "UBAAAAA=",
     "duxin" to
         "UklGRmAdAABXRUJQVlA4IFQdAADQawCdASrAAJkAPqE8l0imIyIhM7eeQMAUCWoAyI/7y1SXrU+t3BJWP5rr6n+99Z/913aPmX80"
         + "/0o/3P1DP7T1SvoQdMn/gf+lkAnUT0CeIf6P8efN/yGfDPcblFda+Zn8x/Gn7r+/ek3hP8zf9T1C/Z3+x38EAP5//bv2P8gP/H9I"
@@ -745,7 +743,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "+Hz+S1GbjGTpcT+i43v+7Gk/I9SYT2WTIBuWOMJmp1Z86uPH/k4TYbZFQ0V9DFZN2D+RnYp6qOXNHsI0MPTx7/j5dihE10N/dnAm"
         + "zTaBne2YbJ8kQGgAKARG5l7+zofspbfC8MfZ7q/6hEdqPPqsCx/sqBbFYDNMyL6uarA+l+jpBk+gx03H8hzxelWj3e/mJOxwnpTn"
         + "rnru1QEwleyu0q9XCL/b4RArDy2E6SB6R8bFZ46vI95b4fDHPDjQc7VIxOlyN1axezLihRvNd68sC2Ae5qPvfwj95rA/l8fh59sF"
-        + "VlIZaTLkvYeRwphDsZNwxfQqtmPl4jwAAAAAAA==".trimMargin(),
+        + "VlIZaTLkvYeRwphDsZNwxfQqtmPl4jwAAAAAAA==",
     "moshi-big" to
         "UklGRsIkAABXRUJQVlA4ILYkAABwewCdASrAAKwAPqE+mEimIyIhMnhsSMAUCWYAt3OmUT/o+cryL2+fLYyTzp7r/m+uzcH+azze"
         + "/OJ9MDqqt6Es4bfT+f8D/Hh8A/fP3a9e7/c7/Ppn9D5jfzv8Ofw/8T6Q9/Pyv/2/UI/Mv6v59sDNwR70/ifBI1ifEPsC/0H+0/9b"
@@ -872,7 +870,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "2bFdKYFiuaUNmnceqZghMCYVDbMURkWGOBRhr6pnkyBDDiqDvqnxLZB73dpdjh/lpKzNKIb/LmwxPQCCgSRx+957xd4ti+Vp8MYA"
         + "GH7H+zJ8ni/K9vQ5VHF3AJcbb8pMwG5mrZgK9TsWrjXuIOFNEU4ebs+w5ksip95hdwh3VYAEIdcXv/eP5/aKrAbAuCj4qt1fAMGI"
         + "bLjQAi9YwqKWw4MKfncERJWNm7E5JjCRz9VPQjVGa/EBKm+68ePrj++uE9y/yTbqF3KjKd+Y2XKm2uLPmbnMWyIgIY5Y0pA0uJVO"
-        + "nAtA6RN1XtmWDjfbux/Ju5j8oL6p3+kkmhbUViQ8/iZ4+gryv+BXPMwAAA==".trimMargin(),
+        + "nAtA6RN1XtmWDjfbux/Ju5j8oL6p3+kkmhbUViQ8/iZ4+gryv+BXPMwAAA==",
     "qinyisheng" to
         "UklGRtoYAABXRUJQVlA4IM4YAADwYwCdASrAAJkAPqVAmkimI6KhMFYN0MAUiWIAyypPXB6KZt/YPpULiADsr+nLcE86fuyvrr71"
         + "HaVHFL834S/jn07+r/Nj+882T0v+58y/5z+NP43+K9GPDf5cahf5Z/Sf974pO72AH+m/4H/j+Jh/l+nH2k9gH+c/2fkRKB/9F/0/"
@@ -958,7 +956,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "GMfGmxR+YJSHmeZsWyocIplPOmWWsqwuZYfS30z8DeHf4AOQb3EBidm3wNTQAMv1+PylT+Of3WING9w4ApBcJMIMrfOdSVbu8Mw+"
         + "EW//N5qxq8kfp3it4ryvs4aK9KJ7lCJ0HDtIXedBSUWgBuhjKN9R+NPL/X2mZ/Di6ijBD/MGHt2/04ga5+ngKDOWz391PlfwLn17"
         + "SzjThfeTT7P3L/IOrA+ZnFNiZQwHCl32Wm+jjcU50tsWfk9zUV1iWTCBbcMgvINnlXGGh7ZyyuCZ/9Q6R0DkmHFSgVbtxDZu7jhl"
-        + "ybp+/+K6bZRBzPjf+GfDps+eCZ/3wACNuXVFbywEHh0U3TBukfSiBep7682vg5+V9AXBGuuONCU6tX3TIuOUwAAAAAAAAA==".trimMargin(),
+        + "ybp+/+K6bZRBzPjf+GfDps+eCZ/3wACNuXVFbywEHh0U3TBukfSiBep7682vg5+V9AXBGuuONCU6tX3TIuOUwAAAAAAAAA==",
     "zhuangfeng" to
         "UklGRmgfAABXRUJQVlA4IFwfAAAQgQCdASrAAMoAPqVInUumJCKhp9NtWMAUiUAYG0y7M+wfo6kZ5PpJEBj43qk/uq9BZDnHb+N4"
         + "P+Tb5b/Bfuxyt/Sv8zzM/mf5b/nefPhX84tR327vzoCvsJ4GGrv4e9gPzC8RP8T6if9V9Gr/e8wP2H7DIev/2V43OP8IxDPfE4ds"
@@ -1067,7 +1065,7 @@ private val RailPosterData: Map<String, String> = mapOf(
         + "qmi2M7nOkc/LN40rZVaXYN2Ei8xJIEnjO7xGNgL7W6bc5Z2XjTdAhOBm/2J68vensqdSvBLoGnyiP7ZiJNKjpSuFfs34tk8iXned"
         + "QN76IVsYjqShl19opL/2xr7TI69IglUYKMy2T7Kw5ffpuR7/i0a6qrbMMLlXrxcL+TzCKtfR+CFL9DoeDlVF8GKbav6IszVaUYDk"
         + "B7V8ohKVyF5EWkWkc3oTUej6QkJ0WpPsif4ZlJ4EZKjRd87NAsXoKW3PjxvlnjhVEbA+WoQ0WE0Jkxgf/V6eVD3leWClRJ381fkf"
-        + "jry4EKdU07ZHI8JeAlueA+8N26hEYAA=".trimMargin(),
+        + "jry4EKdU07ZHI8JeAlueA+8N26hEYAA=",
 )
 
 private object RailPosterDecoder {
@@ -1185,7 +1183,7 @@ private fun ContinueWatchingCard(drama: RailDrama, onPlay: (String) -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                EpisodeRail(drama.total, drama.watched)
+                Box(Modifier.padding(top = 14.dp)) { EpisodeRail(drama.total, drama.watched) }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1335,7 +1333,7 @@ fun RailDetail(
         val drama = RailDramas[0]
         Column(Modifier.fillMaxSize().background(colors.surface).testTag("rail_detail")) {
             Row(
-                Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
+                Modifier.fillMaxWidth().statusBarsPadding().height(48.dp).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag("rail_detail_back")) {
@@ -1484,7 +1482,7 @@ private fun RailLibraryRow(drama: RailDrama, showDivider: Boolean, onOpen: (Stri
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                EpisodeRail(drama.total, drama.watched, RailRailStyle.Small)
+                Box(Modifier.padding(top = 8.dp)) { EpisodeRail(drama.total, drama.watched, RailRailStyle.Small) }
                 Row(Modifier.fillMaxWidth().padding(top = 5.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("还剩 ${railRemaining(drama)} 集", color = colors.muted, fontSize = 12.sp)
                     Text(railDuration(railRemaining(drama)), color = colors.muted, fontSize = 12.sp)
@@ -1520,9 +1518,10 @@ fun RailLibrary(
 }
 
 @Composable
-private fun RailMineStat(value: String, label: String, onClick: () -> Unit) {
+private fun RailMineStat(value: String, label: String, tag: String, onClick: () -> Unit) {
     Column(
-        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp).testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(value, color = LocalRailColors.current.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -1535,12 +1534,13 @@ private fun RailMenuRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    tag: String,
     onClick: () -> Unit,
 ) {
     val colors = LocalRailColors.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 14.dp).testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -1576,7 +1576,8 @@ fun RailMine(
             item { RailTopBar("我的", "本机片单") }
             item {
                 Surface(
-                    Modifier.fillMaxWidth().padding(top = 16.dp),
+                    onClick = onAccount,
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp).testTag("my_account_card"),
                     shape = RoundedCornerShape(14.dp),
                     color = colors.card,
                 ) {
@@ -1586,6 +1587,7 @@ fun RailMine(
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(Icons.Outlined.PersonOutline, accountName ?: "本机用户", tint = colors.muted, modifier = Modifier.size(30.dp))
+                            AccountAvatarImage(accountAvatar)
                         }
                         Column(Modifier.padding(start = 14.dp).weight(1f)) {
                             Text(accountName ?: "本机用户", color = colors.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -1596,10 +1598,7 @@ fun RailMine(
                                 fontSize = 12.sp,
                             )
                         }
-                        Icon(
-                            Icons.Outlined.ChevronRight, "账号",
-                            tint = colors.muted, modifier = Modifier.size(18.dp).clickable(onClick = onAccount),
-                        )
+                        Icon(Icons.Outlined.ChevronRight, "账号", tint = colors.muted, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -1609,9 +1608,9 @@ fun RailMine(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    RailMineStat("${followingCount.coerceAtLeast(0)}", "追更", onFollowing)
+                    RailMineStat("${followingCount.coerceAtLeast(0)}", "追更", "my_favorites", onFollowing)
                     Box(Modifier.width(1.dp).height(30.dp).background(colors.hair))
-                    RailMineStat("${historyCount.coerceAtLeast(0)}", "历史", onHistory)
+                    RailMineStat("${historyCount.coerceAtLeast(0)}", "历史", "my_history", onHistory)
                 }
             }
             item {
@@ -1620,15 +1619,17 @@ fun RailMine(
                         Icons.Outlined.BookmarkBorder,
                         "我的追更",
                         "${followingCount.coerceAtLeast(0)} 部在追 · 继续按集观看",
+                        "my_following",
                         onFollowing,
                     )
                     RailMenuRow(
                         Icons.Outlined.History,
                         "观看历史",
                         if (historyCount > 0) "本机有 $historyCount 条观看记录" else "本机暂无观看历史",
+                        "my_history_menu",
                         onHistory,
                     )
-                    RailMenuRow(Icons.Outlined.Settings, "设置", "主题与播放偏好", onSettings)
+                    RailMenuRow(Icons.Outlined.Settings, "设置", "主题与播放偏好", "my_settings", onSettings)
                 }
             }
         }
