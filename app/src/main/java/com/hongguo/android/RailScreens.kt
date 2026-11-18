@@ -81,6 +81,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import com.hongguo.account.protocol.RankBoard
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.filled.Bookmark
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -259,6 +261,27 @@ private fun RailTopBar(title: String, trailing: String) {
     ) {
         Text(title, color = LocalRailColors.current.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Text(trailing, color = LocalRailColors.current.muted, fontSize = 12.sp)
+    }
+}
+
+/** 搜索只是入口；输入、结果、分页与错误统一复用现有 SearchScreen。 */
+@Composable
+private fun RailSearchEntry(onClick: () -> Unit) {
+    val colors = LocalRailColors.current
+    Surface(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).testTag("rail_search_entry"),
+        shape = RoundedCornerShape(10.dp),
+        color = colors.card,
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(Icons.Outlined.Search, "搜索", tint = colors.muted, modifier = Modifier.size(20.dp))
+            Text("搜索剧名或关键词", color = colors.muted, fontSize = 14.sp, maxLines = 1)
+        }
     }
 }
 
@@ -502,6 +525,7 @@ fun RailHome(state: HongguoUiState, model: HongguoViewModel) {
             contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
         ) {
             item { RailTopBar("红果", "今晚") }
+            item { RailSearchEntry { model.selectTab(AppTab.SEARCH) } }
             item {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
@@ -638,6 +662,7 @@ fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
 
         Column(Modifier.fillMaxSize().background(colors.surface)) {
             RailTopBar("发现", if (items.isEmpty()) "" else "${items.size} 部")
+            RailSearchEntry { model.selectTab(AppTab.SEARCH) }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -778,6 +803,28 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            val favorite = state.favorites.any { it.card.id == card.id }
+            Row(
+                Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(8.dp))
+                    .clickable { model.toggleFavorite(card) }
+                    .testTag("rail_favorite_toggle")
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Icon(
+                    if (favorite) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    if (favorite) "取消追更" else "加入追更",
+                    tint = if (favorite) colors.brand else colors.muted,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    if (favorite) "已追更" else "追更",
+                    color = if (favorite) colors.brand else colors.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
 
         LazyColumn(
@@ -960,7 +1007,13 @@ private fun RailRankRow(entry: RankEntry, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun RailLibraryRow(entry: LibraryEntry, showDivider: Boolean, onOpen: () -> Unit) {
+private fun RailLibraryRow(
+    entry: LibraryEntry,
+    showDivider: Boolean,
+    favorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onOpen: () -> Unit,
+) {
     val colors = LocalRailColors.current
     val card = entry.card
     val progress = RailProgress(total = card.episodeCount, watched = entry.episodeIndex)
@@ -1010,6 +1063,17 @@ private fun RailLibraryRow(entry: LibraryEntry, showDivider: Boolean, onOpen: ()
                         textAlign = TextAlign.End,
                     )
                 }
+            }
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(48.dp).testTag("rail_library_favorite_${card.id}"),
+            ) {
+                Icon(
+                    if (favorite) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    if (favorite) "取消追更" else "加入追更",
+                    tint = if (favorite) colors.brand else colors.muted,
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
         if (showDivider) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.hair))
@@ -1076,7 +1140,12 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                 }
             } else {
                 itemsIndexed(entries, key = { _, entry -> entry.card.id }) { index, entry ->
-                    RailLibraryRow(entry, index < entries.lastIndex) { model.openLibrary(entry) }
+                    RailLibraryRow(
+                        entry = entry,
+                        showDivider = index < entries.lastIndex,
+                        favorite = state.favorites.any { it.card.id == entry.card.id },
+                        onToggleFavorite = { model.toggleFavorite(entry.card) },
+                    ) { model.openLibrary(entry) }
                 }
             }
         }
