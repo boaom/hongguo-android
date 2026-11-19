@@ -21,7 +21,12 @@ internal fun ReservationResultDialog(result: ReservationResult?, onDismiss: (Res
             modifier = Modifier.testTag("reservation_result"),
             onDismissRequest = { onDismiss(notice) },
             title = { Text("预约结果") },
-            text = { Text("《${notice.title}》\n\n${notice.message}", modifier = Modifier.testTag("reservation_result_message"), fontSize = 14.sp) },
+            text = {
+                Text(
+                    "《${notice.title}》\n\n${notice.message}\n\n可在「我的 → 我的预约」查看已预约的作品。",
+                    modifier = Modifier.testTag("reservation_result_message"), fontSize = 14.sp,
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { onDismiss(notice) }, modifier = Modifier.testTag("reservation_result_dismiss")) { Text("知道了") }
             },

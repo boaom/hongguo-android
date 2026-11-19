@@ -1110,6 +1110,13 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
         val remainingEpisodes = (totalEpisodes - watchedEpisodes).coerceAtLeast(0)
         var editing by rememberSaveable(state.tab, state.libraryCloud) { mutableStateOf(false) }
         LaunchedEffect(entries.isEmpty()) { if (entries.isEmpty()) editing = false }
+        LaunchedEffect(state.openReservations) {
+            if (state.openReservations) {
+                accountModel.selectSection(com.hongguo.account.AccountSection.RESERVATIONS)
+                accountModel.refresh()
+                model.consumeReservationsIntent()
+            }
+        }
 
         if (state.libraryCloud) {
             Column(Modifier.fillMaxSize().background(colors.surface)) {
@@ -1307,6 +1314,9 @@ fun RailMine(
                     }
                     RailMenuRow(Icons.Outlined.History, "播放历史", "本机的观看记录", "my_history") {
                         model.selectTab(AppTab.PLAY_HISTORY)
+                    }
+                    RailMenuRow(Icons.Outlined.BookmarkBorder, "我的预约", "红果账号的预约列表", "my_reservations") {
+                        model.showReservations()
                     }
                     RailMenuRow(Icons.Outlined.Settings, "设置", "主题与播放偏好", "my_settings", openSettings)
                 }

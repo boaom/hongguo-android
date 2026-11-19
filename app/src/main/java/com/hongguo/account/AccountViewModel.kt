@@ -28,6 +28,10 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     fun resolveFavorite(seriesId: String) = repository.resolveFavorite(seriesId)
     fun reserve(work: RelatedWork, expectedOwner: String? = ownerKey) = repository.reserve(work, expectedOwner)
     fun selectSection(section: AccountSection) = repository.selectSection(section)
+    fun openReservations() {
+        repository.selectSection(AccountSection.RESERVATIONS)
+        repository.refresh()
+    }
     fun consumeMessage() = repository.consumeMessage()
     fun consumeReservationResult(result: ReservationResult) = repository.consumeReservationResult(result)
     fun reportProgress(entry: LibraryEntry, durationMs: Long, force: Boolean = false, ownerKey: String? = this.ownerKey) =

@@ -58,6 +58,8 @@ data class HongguoUiState(
     val libraryError: String? = null,
     val history: List<LibraryEntry> = emptyList(),
     val libraryCloud: Boolean = false,
+    /** 从「我的」直达云片单预约列表的一次性意图；RailLibrary 消费后清除。 */
+    val openReservations: Boolean = false,
     val query: String = "",
     val searchedQuery: String = "",
     val results: List<DramaCard> = emptyList(),
@@ -243,7 +245,17 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     fun closeThemeStyle() = navigate(themeOrigin, rememberOrigin = false)
     fun selectLibrarySource(cloud: Boolean) {
         librarySourceChosen = true
-        mutableState.update { it.copy(libraryCloud = cloud) }
+        mutableState.update { it.copy(libraryCloud = cloud, openReservations = false) }
+    }
+
+    /** 从我的页一步打开云片单的预约列表。 */
+    fun showReservations() {
+        librarySourceChosen = true
+        mutableState.update { it.copy(libraryCloud = true, openReservations = true, tab = AppTab.FAVORITES) }
+    }
+
+    fun consumeReservationsIntent() {
+        if (state.value.openReservations) mutableState.update { it.copy(openReservations = false) }
     }
 
     /** A signed-in account's records come first, until the user picks a source themself. Signing out resets this. */
