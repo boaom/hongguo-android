@@ -83,6 +83,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import com.hongguo.account.protocol.RankBoard
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.foundation.layout.BoxScope
 
 /* ---------------------------------------------------------------------------------------------
  * F · 集刻度: 中性冷灰底，唯一重音是集刻度。灰 = 未看，红 = 已看，最高的一根 = 当前集。
@@ -948,6 +949,21 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
                     }
                 }
             }
+            item {
+                // 本机追更 + 红果账号收藏双入口，与其它主题同一套组件。
+                Column(Modifier.padding(top = 16.dp)) {
+                    FavoritePair(
+                        card = card,
+                        localFavorite = state.favorites.any { it.card.id == card.id },
+                        onToggleLocal = { model.toggleFavorite(card) },
+                        model = accountModel,
+                        onSignIn = { model.selectTab(AppTab.ACCOUNT) },
+                    )
+                }
+            }
+            if (detail != null) {
+                item { RelatedWorksSection(state, model, accountModel, horizontalPadding = 0) }
+            }
         }
 
         if (episodes.isNotEmpty()) RailPrimaryButton(
@@ -1012,6 +1028,7 @@ private fun RailLibraryRow(
     showDivider: Boolean,
     favorite: Boolean,
     onToggleFavorite: () -> Unit,
+    badge: (@Composable BoxScope.() -> Unit)? = null,
     onOpen: () -> Unit,
 ) {
     val colors = LocalRailColors.current
@@ -1025,7 +1042,7 @@ private fun RailLibraryRow(
             Modifier.fillMaxWidth().padding(vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RailPoster(card, Modifier.width(56.dp).height(76.dp), corner = 8.dp)
+            Box { RailPoster(card, Modifier.width(56.dp).height(76.dp), corner = 8.dp); badge?.let { it() } }
             Column(Modifier.weight(1f)) {
                 Text(
                     card.title,
@@ -1091,6 +1108,8 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
             it.episodeIndex.coerceIn(0, it.card.episodeCount.coerceAtLeast(0))
         }
         val remainingEpisodes = (totalEpisodes - watchedEpisodes).coerceAtLeast(0)
+        var editing by rememberSaveable(state.tab, state.libraryCloud) { mutableStateOf(false) }
+        LaunchedEffect(entries.isEmpty()) { if (entries.isEmpty()) editing = false }
 
         LazyColumn(
             Modifier.fillMaxSize().background(colors.surface).testTag("rail_library"),
@@ -1122,6 +1141,19 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                             )
                         }
                     }
+                    if (!state.libraryCloud && entries.isNotEmpty()) {
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            if (editing) "完成" else "整理",
+                            Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+                                .clickable { editing = !editing }.testTag("rail_library_edit")
+                                .padding(horizontal = 10.dp),
+                            color = colors.brand,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
             item {
@@ -1140,12 +1172,25 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                 }
             } else {
                 itemsIndexed(entries, key = { _, entry -> entry.card.id }) { index, entry ->
-                    RailLibraryRow(
-                        entry = entry,
-                        showDivider = index < entries.lastIndex,
-                        favorite = state.favorites.any { it.card.id == entry.card.id },
-                        onToggleFavorite = { model.toggleFavorite(entry.card) },
-                    ) { model.openLibrary(entry) }
+                    Box(Modifier.fillMaxWidth()) {
+                        RailLibraryRow(
+                            entry = entry,
+                            showDivider = index < entries.lastIndex,
+                            favorite = state.favorites.any { it.card.id == entry.card.id },
+                            onToggleFavorite = { model.toggleFavorite(entry.card) },
+                            badge = if (editing && !state.libraryCloud) {
+                                {
+                                    RemoveBadge(
+                                        if (history) "删除${entry.card.title}的记录" else "取消收藏${entry.card.title}",
+                                        Modifier.align(Alignment.TopEnd),
+                                    ) {
+                                        if (history) model.removeHistory(entry.card.id)
+                                        else model.toggleFavorite(entry.card)
+                                    }
+                                }
+                            } else null,
+                        ) { model.openLibrary(entry) }
+                    }
                 }
             }
         }
