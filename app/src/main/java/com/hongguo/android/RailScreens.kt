@@ -1111,6 +1111,37 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
         var editing by rememberSaveable(state.tab, state.libraryCloud) { mutableStateOf(false) }
         LaunchedEffect(entries.isEmpty()) { if (entries.isEmpty()) editing = false }
 
+        if (state.libraryCloud) {
+            Column(Modifier.fillMaxSize().background(colors.surface)) {
+                RailTopBar("云片单", "红果账号")
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    listOf(Triple("追更", false, "rail_favorites"), Triple("历史", true, "rail_history"),
+                        Triple("云片单", null, "rail_cloud")).forEach { (label, tabHistory, tag) ->
+                        val active = tabHistory == null
+                        Text(
+                            label,
+                            Modifier.heightIn(min = 44.dp).clickable {
+                                if (tabHistory != null) {
+                                    model.selectLibrarySource(false)
+                                    model.selectTab(if (tabHistory) AppTab.HISTORY else AppTab.FAVORITES)
+                                }
+                            }.testTag(tag),
+                            color = if (active) colors.brand else colors.muted,
+                            fontSize = 15.sp,
+                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    }
+                }
+                Box(Modifier.fillMaxSize().weight(1f)) {
+                    CloudLibraryContent(accountModel, model::openLibrary, onSignIn = { model.selectTab(AppTab.ACCOUNT) })
+                }
+            }
+            return@RailTheme
+        }
+
         LazyColumn(
             Modifier.fillMaxSize().background(colors.surface).testTag("rail_library"),
             contentPadding = PaddingValues(bottom = 24.dp).plusNavClearance(),
@@ -1123,11 +1154,19 @@ fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: Ac
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    listOf(false to "追更", true to "历史").forEach { (isHistory, label) ->
-                        val active = history == isHistory
+                    listOf(Triple("追更", false, "rail_favorites"), Triple("历史", true, "rail_history"),
+                        Triple("云片单", null, "rail_cloud")).forEach { (label, tabHistory, tag) ->
+                        val active = when (tabHistory) {
+                            null -> state.libraryCloud
+                            else -> !state.libraryCloud && history == tabHistory
+                        }
                         Column(
-                            Modifier.clickable { model.selectTab(if (isHistory) AppTab.HISTORY else AppTab.FAVORITES) }
-                                .testTag(if (isHistory) "rail_history" else "rail_favorites"),
+                            Modifier.clickable {
+                                when (tabHistory) {
+                                    null -> model.selectLibrarySource(true)
+                                    else -> { model.selectLibrarySource(false); model.selectTab(if (tabHistory) AppTab.HISTORY else AppTab.FAVORITES) }
+                                }
+                            }.testTag(tag),
                         ) {
                             Text(
                                 label,
