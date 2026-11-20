@@ -389,7 +389,17 @@ private fun EpisodePager(state: HongguoUiState, model: HongguoViewModel, detail:
                         verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text(state.playbackError, color = Color.White, fontSize = 14.sp, lineHeight = 23.sp,
                             modifier = Modifier.testTag("media_status"))
-                        Button(onClick = model::retryPlayback, modifier = Modifier.testTag("retry_playback"), shape = RoundedCornerShape(13.dp)) { Text("重新播放") }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = model::retryPlayback, modifier = Modifier.weight(1f).testTag("retry_playback"),
+                                shape = RoundedCornerShape(13.dp)) { Text("重新播放") }
+                            Button(onClick = model::retryPlaybackWithNewIdentity,
+                                modifier = Modifier.weight(1f).testTag("retry_new_identity"),
+                                shape = RoundedCornerShape(13.dp), colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = androidx.compose.ui.graphics.Color(0xFF9E9E9E))) {
+                                Text("换身份重试")
+                            }
+                        }
                     }
                     state.preparing || (activeVideo != null && playback.player == null) || (playback.isBuffering && playback.playWhenReady) -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(13.dp)) {

@@ -714,6 +714,16 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (position >= 0) playEpisode(position)
     }
 
+    /**
+     * 连续空响应时的自救：丢弃被上游风控的匿名播放身份，重新注册一批新身份再取流。
+     * 等价于用户「卸载重装」，但不丢播放进度和账号状态。
+     */
+    fun retryPlaybackWithNewIdentity() {
+        com.hongguo.api.service.AppSource.discardPlaybackIdentity()
+        val position = state.value.episodePosition
+        if (position >= 0) playEpisode(position, restart = true)
+    }
+
     fun openPlayer() {
         val current = state.value
         // An episode still being prepared carries on; the player picks it up when it is ready.

@@ -61,6 +61,21 @@ public class PlaybackNewHopsTest {
         PlaybackDevice.resetForTest(null);
     }
 
+    /** 显式丢弃身份后，下一次取流必须重新注册一批新身份（「换身份重试」的语义）。 */
+    @Test public void discardIdentityForcesFreshRegistration() throws Exception {
+        com.hongguo.api.service.Stream.VideoTrack track = new com.hongguo.api.service.Stream.VideoTrack();
+        track.url = "https://v1.qznovelvod.com/new-hops-discard.mp4";
+        AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
+        AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> track);
+
+        assertSame(track, AppSource.fetch("1", "auto"));
+        assertEquals(1, registrations.get()); // 首取注册 1 次
+
+        AppSource.discardPlaybackIdentity();
+        assertSame(track, AppSource.fetch("2", "auto"));
+        assertEquals(2, registrations.get()); // 丢弃后再取，重新注册
+    }
+
     /** 预算为 0：fetch 入口即抛超时，不注册、不发任何请求。 */
     @Test public void expiredBudgetStartsNoRegistrationOrRequest() throws Exception {
         try {

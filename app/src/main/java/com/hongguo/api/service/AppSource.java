@@ -71,6 +71,15 @@ public final class AppSource {
             new java.util.concurrent.atomic.AtomicReference<>();
     static final int SINGLE_ATTEMPTS = 5;
 
+    /**
+     * 丢弃进程内缓存的匿名播放身份。用户在连续空响应时可显式「换身份重试」——
+     * 上游会按 device_id/iid 维度间歇风控（参考 issue #72「卸载重装就能播」），
+     * 换一批新身份等价于卸载重装，且不打断正常流程的身份复用。
+     */
+    public static void discardPlaybackIdentity() {
+        PLAYBACK_IDENTITY.set(null);
+    }
+
     /** 接口地址（尾斜杠照抄原实现，签名与路由都以它为准）。 */
     private static final String VIDEO_API =
             "https://api5-normal-sinfonlineb.fqnovel.com/novel/player/multi_video_model/v1/";
