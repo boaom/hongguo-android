@@ -144,6 +144,9 @@ public final class AppSource {
             return v5;
         } catch (InterruptedIOException e) {
             throw e;
+        } catch (PlaybackBackoffException e) {
+            // 上游明确 Retry-After:换身份/换端点都只会空转预算,立即停并把繁忙信号交给 UI。
+            throw e;
         } catch (EmptyPlaybackResponseException e) {
             // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径。
             //
@@ -363,6 +366,15 @@ public final class AppSource {
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
         public EmptyPlaybackResponseException() {
             super("App 接口返回空响应，原因尚未确认，请稍后重试");
+        }
+    }
+
+    /** 上游在空响应里带 Retry-After：服务繁忙的明确信号，不该再换身份空转预算。 */
+    public static final class PlaybackBackoffException extends IOException {
+        public final String retryAfter;
+        public PlaybackBackoffException(String retryAfter) {
+            super("播放服务繁忙，请稍后重试");
+            this.retryAfter = retryAfter;
         }
     }
 
@@ -1204,6 +1216,10 @@ public final class AppSource {
         if (res.body != null && res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         if (res.body == null || res.body.length == 0 || res.text().trim().isEmpty()) {
+            String retryAfter = res.header("Retry-After");
+            if (retryAfter != null && !retryAfter.trim().isEmpty()) {
+                throw new PlaybackBackoffException(retryAfter.trim());
+            }
             throw new EmptyPlaybackResponseException();
         }
         return parseModel(vid, parseMobileV5Response(vid, res.text()), quality);

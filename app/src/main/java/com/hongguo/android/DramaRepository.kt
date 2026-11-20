@@ -218,6 +218,7 @@ fun retryablePlaybackFailure(error: Throwable): Boolean {
     var hops = 0
     while (current != null && hops < 8) {
         if (current is com.hongguo.api.service.AppSource.PlaybackRejectedException) return false
+        if (current is com.hongguo.api.service.AppSource.PlaybackBackoffException) return false
         if (current is com.hongguo.api.service.AppSource.PlaybackHttpException &&
             (current.status == 403 || current.status == 429)) return false
         current = current.cause
@@ -235,6 +236,12 @@ fun readableFailure(error: Throwable, action: String): String {
     }
     chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackRejectedException }?.let {
         return it.message ?: "播放服务拒绝请求，请稍后重试。"
+    }
+    chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackBackoffException }?.let {
+        val seconds = it.retryAfter.toIntOrNull()
+        return if (seconds != null && seconds > 0)
+            "播放服务繁忙，请约 $seconds 秒后再试。"
+        else "播放服务繁忙，请稍后再试。"
     }
     if (chain.any { it is com.hongguo.api.service.AppSource.EmptyPlaybackResponseException }) {
         return "播放服务连续返回空响应，请稍后重试或选择其他集。"
