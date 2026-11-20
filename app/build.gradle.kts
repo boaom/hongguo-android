@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -27,7 +29,7 @@ android {
             if (!storeB64.isNullOrBlank()) {
                 val file = layout.buildDirectory.file("signing/release.p12").get().asFile
                 file.parentFile.mkdirs()
-                file.writeBytes(java.util.Base64.getDecoder().decode(storeB64))
+                file.writeBytes(Base64.getDecoder().decode(storeB64))
                 storeFile = file
             } else if (!storeFileEnv.isNullOrBlank()) {
                 storeFile = file(storeFileEnv)
