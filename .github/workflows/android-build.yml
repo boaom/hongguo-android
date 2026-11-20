@@ -21,7 +21,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Assemble debug APK
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Verify APK signature is stable
+        run: |
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          echo "APK: $APK"
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | head -6
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon

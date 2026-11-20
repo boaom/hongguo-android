@@ -17,9 +17,38 @@ android {
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/boaom/hongguo-android/releases/latest/download/update.json\"")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"
     }
+
+    // 固定签名：CI 从 GitHub Secrets 还原 keystore，保证每次构建的 APK 签名一致、可覆盖安装。
+    // 本机没有这些环境变量时回退到 debug 签名，不影响日常开发。
+    signingConfigs {
+        create("fixed") {
+            val storeB64 = System.getenv("SIGNING_KEYSTORE_B64")
+            val storeFileEnv = System.getenv("SIGNING_KEYSTORE_FILE")
+            if (!storeB64.isNullOrBlank()) {
+                val file = layout.buildDirectory.file("signing/release.p12").get().asFile
+                file.parentFile.mkdirs()
+                file.writeBytes(java.util.Base64.getDecoder().decode(storeB64))
+                storeFile = file
+            } else if (!storeFileEnv.isNullOrBlank()) {
+                storeFile = file(storeFileEnv)
+            }
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            storeType = "pkcs12"
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("fixed")
+        }
+        debug {
+            // App 目前分发 debug 包；有固定签名时也用它，否则回退默认 debug 签名。
+            if (!System.getenv("SIGNING_KEYSTORE_B64").isNullOrBlank() ||
+                !System.getenv("SIGNING_KEYSTORE_FILE").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
         }
     }
     compileOptions {
