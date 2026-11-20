@@ -393,7 +393,7 @@ public final class AppSource {
     }
 
     /** 上游在空响应里带 Retry-After：服务繁忙的明确信号，不该再换身份空转预算。 */
-    public static final class PlaybackBackoffException extends IOException {
+    public static final class PlaybackBackoffException extends IllegalStateException {
         public final String retryAfter;
         public PlaybackBackoffException(String retryAfter) {
             super("播放服务繁忙，请稍后重试");
