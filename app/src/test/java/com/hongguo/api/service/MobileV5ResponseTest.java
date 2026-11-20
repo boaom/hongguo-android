@@ -73,10 +73,10 @@ public class MobileV5ResponseTest {
         AppSource.parseMobileV5Response(VID, "   ");
     }
 
-    @Test public void v5BodyCarriesDrSceneAndDeviceLevelThree() {
+    @Test public void v5BodyCarriesDrSceneAndDeviceLevelOne() {
         String body = new String(AppSource.mobileV5Body(VID), java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(body.contains("\"dr_scene\":\"player\""));
-        assertTrue(body.contains("\"device_level\":3"));
+        assertTrue(body.contains("\"device_level\":1"));
         assertTrue(body.contains("\"mixed_video_id_map\":{\"1004\":[\"" + VID + "\"]}"));
         assertTrue(body.contains("\"video_platform\":1024"));
         assertTrue(body.contains("\"use_server_dns\":false"));

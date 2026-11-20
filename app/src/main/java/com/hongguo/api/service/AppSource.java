@@ -1136,7 +1136,9 @@ public final class AppSource {
     static byte[] mobileV5Body(String vid) {
         Map<String, Object> biz = Json.obj();
         biz.put("detail_page_version", 0);
-        biz.put("device_level", 3);
+        // 上游 0.7.30 v5（N3urda 6672b55, issue 61）明确用 1：level=3 会让部分分集
+        // 只下发无法解码的 bytevc2 档位；升级前我方 v5 这里是 3，与上游不一致。
+        biz.put("device_level", 1);
         biz.put("disable_digg_stat", false);
         biz.put("disable_video_relate_book", false);
         biz.put("need_all_video_definition", true);
