@@ -322,6 +322,20 @@ public final class AppSource {
             throw new PlaybackRejectedException("播放服务拒绝请求（HTTP " + status + "）");
     }
 
+    /**
+     * 播放元数据响应判定（移植上游 0.7.31）：除 403/429 明确拒绝外，
+     * 「503」或「200 + 空 body」且带 Retry-After 时，是上游要求限流退避——立即停，
+     * 不再换身份/端点空转。交由 PlaybackBackoffException 传到 UI 显示等待秒数。
+     */
+    static void checkPlaybackResponse(Http.Resp response) {
+        checkPlaybackRejection(response.status);
+        String wait = response.header("Retry-After");
+        if (wait != null && !wait.trim().isEmpty()
+                && (response.status == 503 || (response.status == 200 && response.body.length == 0))) {
+            throw new PlaybackBackoffException(wait.trim());
+        }
+    }
+
     private static void stopIfPlaybackRejected(Exception error, PlaybackDevice.Identity identity) {
         if (error instanceof PlaybackHttpException) {
             int status = ((PlaybackHttpException) error).status;
@@ -446,10 +460,10 @@ public final class AppSource {
         Http.Resp send(Http.Req req) throws IOException;
     }
 
-    private static PlaybackHttp playbackHttp = Http::send;
+    private static PlaybackHttp playbackHttp = Http::sendPlaybackMetadataOnce;
 
     static void setPlaybackHttpForTest(PlaybackHttp http) {
-        playbackHttp = http == null ? Http::send : http;
+        playbackHttp = http == null ? Http::sendPlaybackMetadataOnce : http;
     }
 
     /**
@@ -1002,8 +1016,8 @@ public final class AppSource {
             req.header(e.getKey(), e.getValue());
         }
         req.body(body);
-        Http.Resp res = Http.send(req);
-        checkPlaybackRejection(res.status);
+        Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        checkPlaybackResponse(res);
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         return parseModel(vid, parseSingleResponse(vid, res.text()), quality);
     }
@@ -1063,12 +1077,12 @@ public final class AppSource {
         for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
         Http.Resp res;
         try {
-            res = Http.send(req);
+            res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
         } catch (IOException e) {
             if (Thread.currentThread().isInterrupted()) throw e;
             return null;
         }
-        checkPlaybackRejection(res.status);
+        checkPlaybackResponse(res);
         return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
     }
 
@@ -1108,8 +1122,8 @@ public final class AppSource {
         req.followRedirect = false;
         for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
         req.body(body);
-        Http.Resp res = Http.send(req);
-        checkPlaybackRejection(res.status);
+        Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        checkPlaybackResponse(res);
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         return parsePlaybackResponse(res.text());
     }
@@ -1223,13 +1237,10 @@ public final class AppSource {
         checkPlaybackCancellation();
         if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
         Http.Resp res = sendPlaybackRequest(req, started, budgetMs);
+        checkPlaybackResponse(res); // 403/429 拒绝 + Retry-After(503/200空) 退避，统一判定
         if (res.body != null && res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         if (res.body == null || res.body.length == 0 || res.text().trim().isEmpty()) {
-            String retryAfter = res.header("Retry-After");
-            if (retryAfter != null && !retryAfter.trim().isEmpty()) {
-                throw new PlaybackBackoffException(retryAfter.trim());
-            }
             throw new EmptyPlaybackResponseException();
         }
         return parseModel(vid, parseMobileV5Response(vid, res.text()), quality);
@@ -1295,8 +1306,8 @@ public final class AppSource {
             if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
             SignedPlayback tab = tabSignatureRequest(identity, vid, System.currentTimeMillis());
             Http.Resp res = sendSigned(tab.url, tab.headers, null, "GET", started, budgetMs);
-            // 403/429 是明确拒绝：不换新身份重打 POST，直接终止整条链（其余非 200 仍走 POST，保留兜底能力）。
-            checkPlaybackRejection(res.status);
+            // 403/429 拒绝 + Retry-After 退避：不换新身份重打 POST，直接终止整条链。
+            checkPlaybackResponse(res);
             if (res.status == 200 && res.body != null && res.body.length > 0 && !res.text().trim().isEmpty()) {
                 checkPlaybackCancellation();
                 Stream.VideoTrack track = parseModel(vid, wrapTabModel(vid, res.text()), quality);
@@ -1314,6 +1325,7 @@ public final class AppSource {
             if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
             SignedPlayback post = postSignatureRequest(identity, vid, System.currentTimeMillis());
             Http.Resp res = sendSigned(post.url, post.headers, post.body, "POST", started, budgetMs);
+            checkPlaybackResponse(res);
             if (res.status != 200) throw new PlaybackHttpException(res.status);
             if (res.body == null || res.body.length == 0) throw new EmptyPlaybackResponseException();
             checkPlaybackCancellation();
