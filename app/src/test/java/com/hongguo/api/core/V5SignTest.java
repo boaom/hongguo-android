@@ -108,7 +108,7 @@ public class V5SignTest {
     }
 
     @Test public void signPlaybackOnlyMovesTicketAndBindsBodyAndIdentity() {
-        String base = "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1";
+        String base = "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/v1/";
         byte[] body = new byte[]{31, (byte) 139, 8, 0, 1, 2, 3, 4};
         long ts = 1800000000L;
         Map<String, String> values = new LinkedHashMap<>();
@@ -166,7 +166,7 @@ public class V5SignTest {
         String url = null;
         for (int offset = 0; offset < 1024 && url == null; offset++) {
             String candidate = "https://api5-normal-sinfonlinea.fqnovel.com"
-                    + "/novel/player/multi_video_model/player/v1"
+                    + "/novel/player/multi_video_model/v1/"
                     + "?aid=8662&device_id=7432109876543210987&_rticket=" + (1800000000000L + offset);
             byte[] q = PureSign.sm3(PureSign.queryOf(candidate).getBytes(StandardCharsets.UTF_8));
             if (V5Sign.branchAccepts(q, bodyMd5, ts)) url = candidate;

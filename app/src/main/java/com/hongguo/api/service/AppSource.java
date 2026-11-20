@@ -1117,13 +1117,14 @@ public final class AppSource {
     // ==================== v5 播放形态（2026-11-16，移植自 N3urda/hongguoTV 18c37c2） ====================
 
     /**
-     * v5 播放端点（与 v3 的 {@code multi_video_model/v1} 不同：多一层 {@code /player/}，且主机是 a 域名）。
+     * v5 播放端点。2026-11-20 抓包实证：{@code multi_video_model/player/v1} 返回 200+空 body，
+ * 有效端点是无 {@code /player/} 层的 {@code multi_video_model/v1/}（第三方客户端正在用且正常返回）。
      *
      * <p>上游 {@code MobilePlayback.ladder} 用的就是这一条；query 只有 13 个字段（不再带 ts、不再带
      * 全套 deviceBase），因为 v5 的票号选择靠 {@code _rticket} 抖动而不是 {@code ts}。
      */
     static final String MOBILE_V5_API =
-            "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1";
+            "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/v1/";
 
     /** v5 的播放器版本（上游 74332 / 7.4.3.32）。 */
     private static final String MOBILE_V5_VERSION_CODE = "74332";
