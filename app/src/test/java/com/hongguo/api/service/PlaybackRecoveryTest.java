@@ -137,23 +137,25 @@ public class PlaybackRecoveryTest {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         CountDownLatch waiting = new CountDownLatch(1), release = new CountDownLatch(1);
         List<PlaybackDevice.Identity> used = new ArrayList<>();
-        AtomicInteger renew = new AtomicInteger();
+
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             if (vid.equals("2")) {
                 waiting.countDown();
                 if (!release.await(3, TimeUnit.SECONDS)) throw new AssertionError("Timed out waiting for new identity");
                 throw new AppSource.PlaybackRejectedException("old refusal");
             }
-            if (vid.equals("3") && renew.getAndIncrement() == 0) throw new AppSource.EmptyPlaybackResponseException();
+            if (vid.equals("3")) throw new AppSource.PlaybackRejectedException("current refusal");
             used.add(identity); return track;
         });
         try {
+            // 上游 0.7.31：空响应不再换身份，所以用「业务拒绝」驱动身份轮换——拒绝才需要清缓存换身份。
             AppSource.fetch("1", "auto");
             Future<?> stale = worker.submit(() -> assertThrows(AppSource.PlaybackRejectedException.class, () -> AppSource.fetch("2", "auto")));
             assertTrue(waiting.await(3, TimeUnit.SECONDS));
-            AppSource.fetch("3", "auto");
-            release.countDown(); stale.get(3, TimeUnit.SECONDS);
+            assertThrows(AppSource.PlaybackRejectedException.class, () -> AppSource.fetch("3", "auto"));
             AppSource.fetch("4", "auto");
+            release.countDown(); stale.get(3, TimeUnit.SECONDS);
+            AppSource.fetch("5", "auto");
             assertEquals(2, registrations.get());
             assertNotSame(used.get(0), used.get(1));
             assertSame(used.get(1), used.get(2));
