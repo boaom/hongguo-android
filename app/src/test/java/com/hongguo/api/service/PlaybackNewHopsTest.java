@@ -46,7 +46,7 @@ public class PlaybackNewHopsTest {
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             throw new AssertionError("Unexpected single request");
         });
-        AppSource.setPlaybackTabForTest((vid, identity) -> { throw new AssertionError("Unexpected legacy request"); });
+        AppSource.setPlaybackTabForTest((vid, identity, deadline) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("Unexpected legacy request"); });
         // 默认让 v5 与 11-13 两跳走生产实现（Http 已被桩掉），需要覆盖语义的用例自行注入。
     }

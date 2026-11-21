@@ -23,7 +23,7 @@ public class PlaybackRecoveryTest {
             int n = registrations.incrementAndGet();
             return new PlaybackDevice.Reply(200, "{\"device_id\":\"71000000000000000" + n + "\",\"install_id\":\"72000000000000000" + n + "\"}");
         });
-        AppSource.setPlaybackTabForTest((vid, identity) -> { throw new AssertionError("Unexpected legacy request"); });
+        AppSource.setPlaybackTabForTest((vid, identity, deadline) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
         // 本仓库在单集之前还有 v5 与 11-13 两跳：这里按「空响应」桩掉，让恢复逻辑走单集路径。
@@ -57,29 +57,35 @@ public class PlaybackRecoveryTest {
         assertTrue(empty.contains("空响应")); assertFalse(empty.contains("检查网络"));
     }
 
-    @Test public void emptyReplyRenewsIdentityBeforeLegacyAndCachesTheSuccessfulReplacement() throws Exception {
+    /**
+     * 上游 0.7.31：空响应不是身份问题——不换新身份，同一会话重读一次即可恢复。
+     * 覆盖「首次播放空 → 重读成功」与「下一集复用同一身份」两步。
+     */
+    @Test public void emptyReplyRecoversOnTheSameIdentityAndKeepsItForTheNextEpisode() throws Exception {
         List<PlaybackDevice.Identity> used = new ArrayList<>();
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             used.add(identity);
-            if (used.size() == 1) throw new AppSource.EmptyPlaybackResponseException();
+            if (used.size() % 2 == 1) throw new AppSource.EmptyPlaybackResponseException();
             return track;
         });
-        AppSource.fetch("1", "auto"); AppSource.fetch("2", "auto");
-        assertEquals(2, registrations.get());
-        assertNotSame(used.get(0), used.get(1));
-        assertSame(used.get(1), used.get(2));
+        assertSame(track, AppSource.fetch("1", "auto"));
+        assertSame(track, AppSource.fetch("2", "auto"));
+        assertEquals(1, registrations.get());          // 全程一次注册
+        assertEquals(4, used.size());                  // 每集两次读取
+        for (PlaybackDevice.Identity id : used) assertSame(used.get(0), id);
     }
 
-    @Test public void persistentEmptyStopsAfterFiveAttempts() throws Exception {
+    @Test public void persistentEmptyYieldsToCompatibilityAfterTwoReads() throws Exception {
         AtomicInteger singles = new AtomicInteger();
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             singles.incrementAndGet(); throw new AppSource.EmptyPlaybackResponseException();
         });
-        AppSource.setPlaybackTabForTest((vid, identity) -> null);
+        AppSource.setPlaybackTabForTest((vid, identity, deadline) -> null);
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AppSource.EmptyPlaybackResponseException(); });
         assertThrows(AppSource.EmptyPlaybackResponseException.class, () -> AppSource.fetch("1", "auto"));
-        assertEquals(5, singles.get());
-        assertEquals(6, registrations.get()); // Five single attempts, then the existing one-time legacy renewal.
+        assertEquals(2, singles.get());
+        // 一次入口注册；单集不再换身份，兼容路由里 renewsIdentity 的那条换一次。
+        assertEquals(2, registrations.get());
     }
 
     @Test public void explicitHttpAndBusinessRejectionsDoNotRetryOrFallBack() throws Exception {

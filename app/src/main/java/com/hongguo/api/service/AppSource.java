@@ -69,7 +69,8 @@ public final class AppSource {
     // Successful anonymous playback identities only; unrelated to recommendation and account devices.
     private static final java.util.concurrent.atomic.AtomicReference<PlaybackDevice.Identity> PLAYBACK_IDENTITY =
             new java.util.concurrent.atomic.AtomicReference<>();
-    static final int SINGLE_ATTEMPTS = 5;
+    /** 上游 0.7.31：单集空响应只读 2 次；空响应不是身份问题，多打几轮只会烧预算。 */
+    static final int SINGLE_ATTEMPTS = 2;
 
     /**
      * 丢弃进程内缓存的匿名播放身份。用户在连续空响应时可显式「换身份重试」——
@@ -218,7 +219,8 @@ public final class AppSource {
                     }
                     break; // No usable model; compatibility routes may still supply one.
                 } catch (EmptyPlaybackResponseException empty) {
-                    PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                    // 上游 0.7.31：空响应不是身份问题——不清缓存身份，也不换新身份重试（换身份无效，
+                    // 只会多花一次注册和一轮预算）。同一身份再读一次后交给兼容路由。
                     if (attempt == SINGLE_ATTEMPTS - 1 || !hasPlaybackTime(started, budgetMs)) throw empty;
                     try { Thread.sleep(300); }
                     catch (InterruptedException cancelled) {
@@ -227,12 +229,6 @@ public final class AppSource {
                     }
                     checkPlaybackCancellation();
                     if (!hasPlaybackTime(started, budgetMs)) throw empty;
-                    try { identity = PlaybackDevice.fresh(); }
-                    catch (IOException error) {
-                        checkPlaybackCancellation();
-                        renewal = error;
-                        throw empty;
-                    }
                 }
             }
         } catch (PlaybackRejectedException e) {
@@ -266,7 +262,8 @@ public final class AppSource {
             if (!hasPlaybackTime(started, budgetMs)) break;
             Map<String, Object> j;
             try {
-                j = route.post ? playbackPost.post(body, identity, route.host) : playbackTab.get(vid, identity);
+                j = route.post ? playbackPost.post(body, identity, route.host)
+                        : playbackTab.get(vid, identity, playbackDeadline(started, budgetMs));
             } catch (PlaybackRejectedException e) {
                 PLAYBACK_IDENTITY.compareAndSet(identity, null);
                 throw e;
@@ -303,6 +300,12 @@ public final class AppSource {
         EmptyPlaybackResponseException empty = new EmptyPlaybackResponseException();
         if (renewal != null) empty.addSuppressed(renewal);
         throw empty;
+    }
+
+    /** 把「起点 + 预算毫秒」换成 nanoTime 截止时刻，供 GET 重试与超时使用。 */
+    static long playbackDeadline(long started, long budgetMs) {
+        return budgetMs <= 0 ? started
+                : started + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(budgetMs);
     }
 
     private static boolean hasPlaybackTime(long started, long budgetMs) {
@@ -484,7 +487,8 @@ public final class AppSource {
 
     /** 可替换的 video_tab 请求（JVM 测试注入）；返回 null 表示该接口不可用、应回退旧流程。 */
     interface PlaybackTab {
-        Map<String, Object> get(String vid, PlaybackDevice.Identity identity) throws Exception;
+        /** @param deadline 本次取流的总截止时刻（nanoTime），GET 重试与超时都不得越过它。 */
+        Map<String, Object> get(String vid, PlaybackDevice.Identity identity, long deadline) throws Exception;
     }
 
     private static PlaybackTab playbackTab = AppSource::getTabModel;
@@ -1069,7 +1073,7 @@ public final class AppSource {
     }
 
     /** 单次签名 GET video_tab；空响应、网络、HTTP 或结构问题一律返回 null，由 fetch 换下一条路径。 */
-    private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity)
+    private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity, long deadline)
             throws Exception {
         SignedPlayback signed = signPlayback(TAB_API, identity, tabQuery(vid), null, System.currentTimeMillis());
         Http.Req req = new Http.Req(signed.url).method("GET").timeout(PLAYBACK_TIMEOUT_MS);
@@ -1077,7 +1081,7 @@ public final class AppSource {
         for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
         Http.Resp res;
         try {
-            res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+            res = Http.sendPlaybackMetadata(req, deadline);
         } catch (IOException e) {
             if (Thread.currentThread().isInterrupted()) throw e;
             return null;
