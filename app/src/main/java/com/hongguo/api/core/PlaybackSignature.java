@@ -79,7 +79,7 @@ public final class PlaybackSignature {
 
     private static String decode(String value) {
         try {
-            return java.net.URLDecoder.decode(value.replace("+", " "), StandardCharsets.UTF_8);
+            return java.net.URLDecoder.decode(value.replace("+", " "), StandardCharsets.UTF_8.name());
         } catch (Exception error) {
             return value;
         }
