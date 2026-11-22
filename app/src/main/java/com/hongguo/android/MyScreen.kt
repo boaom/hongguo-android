@@ -23,11 +23,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -198,8 +200,8 @@ private fun MyMenuRow(title: String, subtitle: String, tag: String, icon: ImageV
             Icon(icon, null, Modifier.size(20.dp), tint = AccentInk)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
+            Text(title, color = Ink, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         if (trailing != null) Text(trailing, color = Muted, fontSize = 13.sp, maxLines = 1)
         if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Muted)
@@ -213,7 +215,7 @@ private fun PageHeader(title: String, backLabel: String, backTag: String, onBack
         IconButton(onClick = onBack, modifier = Modifier.testTag(backTag)) {
             Icon(Icons.AutoMirrored.Outlined.ArrowBack, backLabel, tint = Ink)
         }
-        Text(title, color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = Ink, style = MaterialTheme.typography.headlineSmall)
     }
 }
 
@@ -229,7 +231,7 @@ internal fun SystemSettingsScreen(state: HongguoUiState, model: HongguoViewModel
             Text("外观", color = Muted, fontSize = 14.sp)
             Surface(shape = RoundedCornerShape(16.dp), color = CardSurface, modifier = Modifier.padding(top = 12.dp)) {
                 Column {
-                    MyMenuRow("主题样式", "暖白精修、沉浸暗场、内容卡片、红果场刊、红果小报", "settings_theme",
+                    MyMenuRow("主题样式", "${AppThemeStyle.entries.size} 套主题、深浅色与底栏样式", "settings_theme",
                         trailing = state.themeStyle.label, onClick = onTheme)
                     HorizontalDivider(color = Canvas, modifier = Modifier.padding(horizontal = 18.dp))
                     NavBarStyleSetting(state.navBarStyle, model::setNavBarStyle)
@@ -269,26 +271,16 @@ internal fun ThemeStyleScreen(state: HongguoUiState, model: HongguoViewModel, on
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { PageHeader("主题样式", "返回设置", "theme_back", onBack) }
         item {
-            Text("选择喜欢的界面风格，点选后立即生效。收藏、历史与播放设置不受影响。",
+            Text("左右滑动选择界面风格，点选后立即生效。收藏、历史与播放设置不受影响。",
                 color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
         }
+        item { ThemeModeSelector(state, model) }
         item {
-            // 五套主题两列排布：单行五卡会把主题名挤到换行。
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppThemeStyle.entries.chunked(2).forEach { rowEntries ->
-                    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        rowEntries.forEach { style ->
-                            ThemeOption(style, selected = state.themeStyle == style, modifier = Modifier.weight(1f), previewDark = LocalHongguoPalette.current.isDark) {
-                                model.setThemeStyle(style)
-                            }
-                        }
-                        repeat(2 - rowEntries.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-            }
+            ThemeStyleCarousel(selected = state.themeStyle, previewDark = LocalHongguoPalette.current.isDark,
+                onSelect = model::setThemeStyle)
         }
         item {
-            Surface(shape = RoundedCornerShape(16.dp), color = CardSurface) {
+            Surface(shape = MaterialTheme.shapes.medium, color = CardSurface) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.size(10.dp).clip(CircleShape).background(Orange))
@@ -298,40 +290,57 @@ internal fun ThemeStyleScreen(state: HongguoUiState, model: HongguoViewModel, on
                 }
             }
         }
-        item {
-            Surface(shape = RoundedCornerShape(16.dp), color = CardSurface) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("外观模式", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    val current = state.themeMode.orDefaultFor(state.themeStyle)
-                    Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ThemeMode.entries.forEach { mode ->
-                            val selected = current == mode
-                            Box(Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
-                                .background(if (selected) SoftOrange else Cream)
-                                .selectable(selected = selected, role = Role.RadioButton) { model.setThemeMode(mode) }
-                                .testTag("theme_mode_${mode.key}"), contentAlignment = Alignment.Center) {
-                                Text(mode.label, color = if (selected) AccentInk else Muted, fontSize = 14.sp,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-                            }
-                        }
+        item { Spacer(Modifier.height(28.dp)) }
+    }
+}
+
+@Composable
+private fun ThemeModeSelector(state: HongguoUiState, model: HongguoViewModel) {
+    Surface(shape = MaterialTheme.shapes.medium, color = CardSurface) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("外观模式", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            val current = state.themeMode.orDefaultFor(state.themeStyle)
+            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    val selected = current == mode
+                    Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) SoftOrange else Cream)
+                        .selectable(selected = selected, role = Role.RadioButton) { model.setThemeMode(mode) }
+                        .testTag("theme_mode_${mode.key}"), contentAlignment = Alignment.Center) {
+                        Text(mode.label, color = if (selected) AccentText else Muted, fontSize = 14.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                     }
-                    Text("五套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
-                        color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
+            Text("${AppThemeStyle.entries.size} 套主题都有浅色和深色。选择“跟随系统”后，会随系统自动切换。沉浸暗场的刷剧画面始终保持深色。",
+                color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
         }
-        item { Spacer(Modifier.height(28.dp)) }
+    }
+}
+
+/** One row keeps all six choices and the appearance controls within a short first screen. */
+@Composable
+internal fun ThemeStyleCarousel(selected: AppThemeStyle, previewDark: Boolean?, onSelect: (AppThemeStyle) -> Unit) {
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = AppThemeStyle.entries.indexOf(selected).coerceAtLeast(0))
+    LazyRow(Modifier.fillMaxWidth().selectableGroup().testTag("theme_style_carousel"), state = listState,
+        contentPadding = PaddingValues(horizontal = 2.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(AppThemeStyle.entries, key = { it.key }) { style ->
+            ThemeOption(style, selected = selected == style, modifier = Modifier.width(132.dp), previewDark = previewDark) {
+                onSelect(style)
+            }
+        }
     }
 }
 
 @Composable
 internal fun ThemeOption(style: AppThemeStyle, selected: Boolean, modifier: Modifier, previewDark: Boolean? = null, onSelect: () -> Unit) {
     val ring = if (selected) Orange else Color.Transparent
-    Column(modifier.clip(RoundedCornerShape(16.dp))
+    val shape = MaterialTheme.shapes.medium
+    Column(modifier.clip(shape)
         .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
         .semantics { contentDescription = "${style.label}主题" }
         .testTag("theme_option_${style.key}")
-        .border(2.dp, ring, RoundedCornerShape(16.dp))
+        .border(2.dp, ring, shape)
         .background(CardSurface)
         .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -537,8 +546,8 @@ private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, tag
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            Text(title, color = Ink, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = Muted, style = MaterialTheme.typography.bodySmall)
         }
         // Off state uses the secondary text color so the control stays visible on every theme.
         Switch(checked = checked, onCheckedChange = onChange, modifier = Modifier.testTag(tag),

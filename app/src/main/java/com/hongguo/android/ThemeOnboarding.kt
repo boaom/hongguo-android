@@ -3,13 +3,12 @@ package com.hongguo.android
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -52,25 +51,18 @@ internal fun ThemeOnboardingDialog(current: AppThemeStyle, onConfirm: (AppThemeS
         HongguoTheme(pending, applyToWindow = false) {
             Surface(shape = RoundedCornerShape(24.dp), color = Canvas,
                 modifier = Modifier.padding(16.dp).widthIn(max = 440.dp).fillMaxWidth().testTag("theme_onboarding")) {
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("选择你喜欢的界面风格", color = Ink, fontSize = 21.sp, lineHeight = 28.sp,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
-                    Text("五套主题的页面布局各不相同，点选即可预览配色。之后也可以在${THEME_SETTINGS_PATH}中随时切换。",
-                        color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
-                    // 五套主题两列排布：单行五卡会把主题名挤到换行。
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AppThemeStyle.entries.chunked(2).forEach { rowEntries ->
-                            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                rowEntries.forEach { style ->
-                                    ThemeOption(style, selected = pending == style, modifier = Modifier.weight(1f)) { pending = style }
-                                }
-                                repeat(2 - rowEntries.size) { Spacer(Modifier.weight(1f)) }
-                            }
-                        }
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 20.dp)) {
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text("选择你喜欢的界面风格", color = Ink, fontSize = 21.sp, lineHeight = 28.sp,
+                            fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
+                        Text("${AppThemeStyle.entries.size} 套主题的页面布局各不相同，左右滑动即可预览。之后也可以在${THEME_SETTINGS_PATH}中随时切换。",
+                            color = Muted, fontSize = 13.sp, lineHeight = 20.sp)
+                        ThemeStyleCarousel(selected = pending, previewDark = null, onSelect = { pending = it })
+                        Text(pending.summary, color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
+                            modifier = Modifier.testTag("theme_onboarding_summary"))
                     }
-                    Text(pending.summary, color = Muted, fontSize = 13.sp, lineHeight = 20.sp,
-                        modifier = Modifier.testTag("theme_onboarding_summary"))
+                    Spacer(Modifier.height(14.dp))
                     Button(onClick = { onConfirm(pending) },
                         colors = ButtonDefaults.buttonColors(containerColor = Orange, contentColor = OnOrange),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("theme_onboarding_confirm")) {

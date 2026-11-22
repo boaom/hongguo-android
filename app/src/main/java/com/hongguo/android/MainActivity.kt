@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -57,6 +58,7 @@ import com.hongguo.account.AccountViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         applyThemeWindow(storedThemePalette())
         setContent {
@@ -255,8 +257,7 @@ class MainActivity : ComponentActivity() {
 
 /**
  * The saved theme, read before composition so the window and system bars match it from the first Compose frame.
- * The system's starting window (themes.xml) is drawn earlier and stays light; a dark splash would need a
- * separate starting theme.
+ * The branded splash has light/dark resources; the saved palette is applied before the first Compose frame.
  */
 private fun ComponentActivity.storedThemePalette(): HongguoPalette {
     val preferences = getSharedPreferences(ThemePreferences.FILE, android.content.Context.MODE_PRIVATE)

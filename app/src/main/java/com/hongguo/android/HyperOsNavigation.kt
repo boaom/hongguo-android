@@ -183,7 +183,7 @@ internal fun LiquidGlassNavigationBar(
     val palette = LocalHongguoPalette.current
     val scope = rememberCoroutineScope()
     val selectedIndex = tabs.indexOfFirst { it.tab == selected }.coerceAtLeast(0)
-    val activeColor = if (style == AppThemeStyle.WARM) AccentInk else Ink
+    val activeColor = palette.navigationActiveColor(style)
     // Darker than the classic bar's grey: labels sit on whatever colour scrolls underneath the glass.
     val idleColor = Ink.copy(alpha = .72f)
 
@@ -359,7 +359,7 @@ internal fun LiquidGlassNavigationBar(
                                 scaleX = scale; scaleY = scale
                                 translationY = -2.dp.toPx() * near * press.value
                             })
-                        Text(item.label, color = color, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1,
+                        Text(item.label, color = color, fontSize = 12.sp, lineHeight = 15.sp, maxLines = 1,
                             fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Medium,
                             modifier = Modifier.padding(top = 2.dp))
                     }

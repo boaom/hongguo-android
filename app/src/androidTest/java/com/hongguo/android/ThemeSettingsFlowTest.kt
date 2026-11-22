@@ -49,12 +49,12 @@ class ThemeSettingsFlowTest {
             compose.onNodeWithTag("theme_screen").assertExists()
             compose.onNodeWithTag("theme_option_warm").assertIsSelected()
 
-            compose.onNodeWithTag("theme_option_immersive").performClick()
+            compose.onNodeWithTag("theme_option_immersive").performScrollTo().performClick()
             compose.runOnIdle { assertEquals(AppThemeStyle.IMMERSIVE, model.state.value.themeStyle) }
             compose.onNodeWithTag("theme_option_immersive").assertIsSelected()
             compose.onNodeWithTag("theme_option_warm").assertIsNotSelected()
 
-            compose.onNodeWithTag("theme_option_cards").performClick()
+            compose.onNodeWithTag("theme_option_cards").performScrollTo().performClick()
             compose.onNodeWithTag("theme_mode_dark").performScrollTo().performClick()
             compose.runOnIdle {
                 assertEquals(AppThemeStyle.CARDS, model.state.value.themeStyle)
@@ -71,6 +71,9 @@ class ThemeSettingsFlowTest {
                     assertEquals(ThemeMode.DARK, fresh.state.value.themeMode)
                 }
             } finally { compose.runOnIdle { store.clear() } }
+
+            compose.onNodeWithTag("theme_option_rail").performScrollTo().performClick()
+            compose.runOnIdle { assertEquals(AppThemeStyle.RAIL, model.state.value.themeStyle) }
 
             pressBack()
             compose.onNodeWithTag("settings_screen").assertExists()

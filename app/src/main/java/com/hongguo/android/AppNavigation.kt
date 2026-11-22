@@ -156,13 +156,9 @@ internal fun AppNavigation(selected: AppTab, onSelect: (AppTab) -> Unit, modifie
                         if (isSelected) { pop.snapTo(.84f); pop.animateTo(1f, spring(dampingRatio = .42f, stiffness = 420f)) }
                     }
                     val popLayer = Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }
-                    val color by animateColorAsState(when {
-                        !isSelected -> secondary
-                        // 集刻度把红留给「你在哪」:选中项就是那个红,其余保持 ink。
-                        style == AppThemeStyle.RAIL -> Orange
-                        style == AppThemeStyle.WARM -> AccentInk
-                        else -> Ink
-                    }, tween(180), label = "nav_color_${tab.name}")
+                    val color by animateColorAsState(
+                        if (isSelected) LocalHongguoPalette.current.navigationActiveColor(style) else secondary,
+                        tween(180), label = "nav_color_${tab.name}")
                     // Selection marks grow in rather than switching on and off.
                     // Read only while drawing, so the spring redraws the mark without recomposing the bar.
                     val mark = animateFloatAsState(if (isSelected) 1f else 0f,
