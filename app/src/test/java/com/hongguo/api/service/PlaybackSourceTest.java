@@ -66,6 +66,10 @@ public class PlaybackSourceTest {
             throw new AppSource.EmptyPlaybackResponseException();
         });
         // v5 形态（2026-11-16）默认也回空，避免单测打真网络；需要它的用例自行注入。
+        // 2026-11-20 新增的 video_tab v5 首跳：默认桩成空响应，保持原用例的路径断言不变。
+        AppSource.setTabV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
@@ -78,7 +82,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackTabForTest(null);
         AppSource.setSinglePlaybackForTest(null);
         AppSource.setPlayerSignaturePlaybackForTest(null);
-        AppSource.setMobileV5PlaybackForTest(null);
+        AppSource.setMobileV5PlaybackForTest(null); AppSource.setTabV5PlaybackForTest(null);
     }
 
     // ==================== ttEncrypt 注册请求体 ====================

@@ -144,6 +144,26 @@ public final class AppSource {
         Exception failure = null;
         Exception modelFailure = null;
         IOException renewal = null;
+        // 2026-11-20 上游再变：player/v1 的 v5 POST 与旧签名 video_tab 都只回 200+空正文，
+        // 唯一可用的是 video_tab 的 v5 无正文 GET（上游 0.7.32 / jackotom 7.7，真机验证）。
+        // 它排最前，失败再按原顺序走其余接口，不改变既有回退语义。
+        if (hasPlaybackTime(started, budgetMs)) {
+            try {
+                Stream.VideoTrack tab = tabV5Playback.get(vid, quality, identity, started, budgetMs);
+                if (tab != null) {
+                    checkPlaybackCancellation();
+                    PLAYBACK_IDENTITY.compareAndSet(null, identity);
+                    return tab;
+                }
+            } catch (InterruptedIOException cancelled) {
+                throw cancelled;
+            } catch (PlaybackBackoffException backoff) {
+                throw backoff;
+            } catch (Exception tabFailure) {
+                if (Thread.currentThread().isInterrupted()) throw tabFailure;
+                // 该路径不可用时按原顺序继续尝试其余接口。
+            }
+        }
         // 2026-11-16 上游再变：v3 Medusa 形态一律回 200 + 空正文，换身份无效。权威解是
         // N3urda/hongguoTV 18c37c2 的 v5 形态（v04.10.03，端点 .../multi_video_model/player/v1，
         // gzip 体 + 票号选分支 0 的 hashF13/AesV3/medusa）。它排最前，空响应再落到下面 11-13 的两跳。
@@ -435,6 +455,18 @@ public final class AppSource {
     interface MobileV5Playback {
         Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity,
                 long started, long budgetMs) throws Exception;
+    }
+
+    /** video_tab 的 v5 无正文 GET（2026-11-20 起唯一可用的取源形态）；JVM 测试注入。 */
+    interface TabV5Playback {
+        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity,
+                long started, long budgetMs) throws Exception;
+    }
+
+    private static TabV5Playback tabV5Playback = AppSource::fetchTabV5;
+
+    static void setTabV5PlaybackForTest(TabV5Playback playback) {
+        tabV5Playback = playback == null ? AppSource::fetchTabV5 : playback;
     }
 
     private static MobileV5Playback mobileV5Playback = AppSource::fetchMobileV5;
@@ -1153,6 +1185,16 @@ public final class AppSource {
             "com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; "
             + "Build/V417IR;tt-ok/3.12.13.20)";
 
+    /**
+     * 2026-11-20 起的唯一可用取源形态：video_tab 的 v5 无正文 GET。
+     * player/v1 的 v5 POST 与旧 Argus/Ladon 签名的 video_tab 都只回 200+空正文。
+     */
+    static final String TAB_V5_API = "https://api5-normal-sinfonlineb.fqnovel.com"
+            + "/reading/bookapi/video_tab/multi_video_model/v1/";
+    private static final String TAB_V5_UA = "com.phoenix.read/73932 (Linux; U; Android 16; zh_CN; "
+            + "25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 "
+            + "QuicVersion:c67e9834 2025-09-08)";
+
     /** v5 的 13 个 query 字段，顺序照抄上游 {@code linkedMapOf}（query 按插入序编码）。 */
     static Map<String, String> mobileV5Query(PlaybackDevice.Identity identity, long ticket) {
         Map<String, String> q = new LinkedHashMap<>();
@@ -1213,6 +1255,37 @@ public final class AppSource {
     static Stream.VideoTrack fetchMobileV5(String vid, String quality, PlaybackDevice.Identity identity)
             throws Exception {
         return fetchMobileV5(vid, quality, identity, System.nanoTime(), PLAYBACK_BUDGET_MS);
+    }
+
+    /**
+     * video_tab 的 v5 无正文 GET 取源。2026-11-20 起 player/v1 的 v5 POST 与旧签名 video_tab
+     * 都只回 200+空正文，这条是当前唯一可用的路径。响应为
+     * {@code data.video_model_data[vid].video_model}，复用 {@link #parseTabResponse}。
+     */
+    static Stream.VideoTrack fetchTabV5(String vid, String quality, PlaybackDevice.Identity identity,
+            long started, long budgetMs) throws Exception {
+        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
+        checkPlaybackCancellation();
+        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
+        long nowMs = System.currentTimeMillis();
+        long ts = nowMs / 1000L;
+        Map<String, String> values = V5Sign.videoTabQuery(vid, identity.deviceId, identity.iid, identity.cdid);
+        V5Sign.Signed signed = V5Sign.signPlaybackGet(TAB_V5_API, values, mobileV5Identity(identity),
+                ts, nowMs, null);
+        Http.Req req = new Http.Req(signed.url).method("GET").timeout(PLAYBACK_TIMEOUT_MS);
+        req.followRedirect = false;
+        // video_tab 属 player 签名族：只有三个 Armor 头 + UA/Accept，不带 Content-* 与 x-ss-stub。
+        req.header("User-Agent", TAB_V5_UA);
+        req.header("Accept", "application/json");
+        for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
+        Http.Resp res = sendPlaybackRequest(req, started, budgetMs);
+        checkPlaybackResponse(res);
+        if (res.status != 200) throw new PlaybackHttpException(res.status);
+        if (res.body == null || res.body.length == 0) throw new EmptyPlaybackResponseException();
+        if (res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        Map<String, Object> model = parseTabResponse(vid, res.text());
+        if (model == null) throw new IllegalStateException("video_tab 未返回本集播放模型");
+        return parseModel(vid, model, quality);
     }
 
     static Stream.VideoTrack fetchMobileV5(String vid, String quality, PlaybackDevice.Identity identity,

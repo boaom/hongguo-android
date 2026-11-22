@@ -42,6 +42,10 @@ public class PlaybackNewHopsTest {
             requestedUrls.add(req.url);
             return HttpForTest.empty(200);
         });
+        // video_tab v5 首跳（2026-11-20）：同样按空响应桩掉，避免打真网络。
+        AppSource.setTabV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
         // 旧路径全部按「不可用」桩掉：本测试只关心新两跳的行为。
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> {
             throw new AssertionError("Unexpected single request");
@@ -54,6 +58,7 @@ public class PlaybackNewHopsTest {
     @After public void cleanup() {
         AppSource.setPlaybackHttpForTest(null);
         AppSource.setMobileV5PlaybackForTest(null);
+        AppSource.setTabV5PlaybackForTest(null);
         AppSource.setPlayerSignaturePlaybackForTest(null);
         AppSource.setSinglePlaybackForTest(null);
         AppSource.setPlaybackTabForTest(null);

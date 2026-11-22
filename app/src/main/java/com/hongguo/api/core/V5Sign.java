@@ -120,6 +120,67 @@ public final class V5Sign {
      * @param ticketStart 票号起点（通常是毫秒时间戳）
      * @param random   注入的随机字节（测试用）；null 用 {@link java.security.SecureRandom}
      */
+    /**
+     * video_tab 的无正文 v5 GET 签名（2026-11-20 起唯一可用的取源形态）。
+     *
+     * <p>与 {@link #signPlayback} 的区别：body 是空数组，其 digest 必须是 <b>MD5(空)</b>
+     * 而不是 16 个零字节（后者是 body 为 null 时的旧口径，2026-11-20 起会被判空响应）。
+     * 只产出 x-khronos / x-helios / x-medusa 三个头，调用方不得再加
+     * Content-Type / Content-Encoding / x-ss-stub。
+     */
+    public static Signed signPlaybackGet(String base, Map<String, String> values,
+            Identity identity, long ts, long ticketStart, RandomSource random) {
+        if (base == null || values == null || identity == null) {
+            throw new IllegalArgumentException("v5 播放签名参数无效");
+        }
+        RandomSource rnd = random == null ? new SecureRandomSource() : random;
+        byte[] empty = new byte[0];
+        byte[] bodyMd5 = PureSign.md5(empty);
+        String query = null;
+        for (int offset = 0; offset < TICKET_SEARCH_LIMIT; offset++) {
+            long ticket = ticketStart + offset;
+            String candidate = encode(values, ticket);
+            byte[] querySm3 = PureSign.sm3(candidate.getBytes(StandardCharsets.UTF_8));
+            if (!branchAccepts(querySm3, bodyMd5, (int) ts)) continue;
+            query = candidate;
+            break;
+        }
+        if (query == null) throw new IllegalStateException("无法生成播放签名");
+        String url = base + "?" + query;
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("x-khronos", String.valueOf(ts));
+        headers.put("x-helios", PureSign.helios(ts, rnd.nextInt(), LICENSE));
+        headers.put("x-medusa", medusaV5(url, empty, (int) ts, identity, rnd));
+        return new Signed(url, headers, empty);
+    }
+
+    /** video_tab 的 query：注册身份 + 分集号 + 取源档位参数（21 字段，照抄 v5 video_tab）。 */
+    public static Map<String, String> videoTabQuery(String vid, String deviceId, String iid, String cdid) {
+        Map<String, String> q = new LinkedHashMap<>();
+        q.put("aid", "8662");
+        q.put("app_name", "novelread");
+        q.put("version_code", "74332");
+        q.put("version_name", "7.4.3.32");
+        q.put("channel", "vivo_8662_64");
+        q.put("device_platform", "android");
+        q.put("device_type", "PGT-AN10");
+        q.put("os_version", "12");
+        q.put("update_version_code", "74332");
+        q.put("iid", iid);
+        q.put("cdid", cdid);
+        q.put("device_id", deviceId);
+        q.put("video_id", vid);
+        q.put("video_id_type", "0");
+        q.put("device_level", "1");
+        q.put("need_all_video_definition", "1");
+        q.put("need_mp4_align", "0");
+        q.put("use_os_player", "0");
+        q.put("video_platform", "1024");
+        q.put("source", "0");
+        q.put("from_video_id", "");
+        return q;
+    }
+
     public static Signed signPlayback(String base, Map<String, String> values, byte[] body,
             Identity identity, long ts, long ticketStart, RandomSource random) {
         if (base == null || values == null || identity == null) {

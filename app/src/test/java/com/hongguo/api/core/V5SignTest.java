@@ -26,6 +26,32 @@ import static org.junit.Assert.*;
  */
 public class V5SignTest {
 
+    /** video_tab 的无正文 GET：空 body 的 digest 必须是 MD5(空)，不是 16 个零字节。 */
+    @Test public void bodylessGetUsesMd5OfEmptyBodyAndThreeArmorHeaders() {
+        Map<String, String> values = V5Sign.videoTabQuery("7600000000000000001",
+                "7432109876543210987", "1905892595382586", "synthetic-cdid");
+        V5Sign.Identity identity = new V5Sign.Identity("7432109876543210987", "7.4.3.32",
+                "vivo_8662_64", "12", "PGT-AN10", "c3ludGhldGlj", 1800000000000L);
+        V5Sign.Signed signed = V5Sign.signPlaybackGet(
+                "https://api5-normal-sinfonlineb.fqnovel.com/reading/bookapi/video_tab/multi_video_model/v1/",
+                values, identity, 1800000000L, 1800000000000L, new FixedRandom());
+        assertEquals("只带三个 Armor 头", 3, signed.headers.size());
+        assertTrue(signed.headers.containsKey("x-khronos"));
+        assertTrue(signed.headers.containsKey("x-helios"));
+        assertTrue(signed.headers.containsKey("x-medusa"));
+        assertEquals("无正文", 0, signed.body.length);
+        String query = signed.url.substring(signed.url.indexOf('?') + 1);
+        assertTrue("分集号在 query 里", query.contains("video_id=7600000000000000001"));
+        assertTrue("取源档位参数", query.contains("need_all_video_definition=1"));
+        assertTrue("只出现一次 _rticket", 1, count(query, "_rticket="));
+        // 分支判定必须用 MD5(空)，16 个零字节会算出另一种结果
+        byte[] querySm3 = PureSign.sm3(query.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertTrue("空 body 用 MD5(空) 才落在分支 0",
+                V5Sign.branchAccepts(querySm3, PureSign.md5(new byte[0]), 1800000000));
+        // 只断言确定性事实：MD5(空) 一定落在分支 0（签名函数就是按它搜的票号）。
+        // 不断言 16 个零字节不满足——那是 1/16 概率的巧合，会造成 flaky。
+    }
+
     @Test public void hashF13V5MatchesAllTimestampRotationVectors() {
         int checked = 0;
         for (String row : F13_VECTORS) {

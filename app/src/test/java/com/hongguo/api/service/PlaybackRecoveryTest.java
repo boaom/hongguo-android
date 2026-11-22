@@ -27,6 +27,10 @@ public class PlaybackRecoveryTest {
         AppSource.setPlaybackPostForTest((body, identity, host) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity) -> track);
         // 本仓库在单集之前还有 v5 与 11-13 两跳：这里按「空响应」桩掉，让恢复逻辑走单集路径。
+        // 2026-11-20 新增的 video_tab v5 首跳：默认桩成空响应，保持原用例的路径断言不变。
+        AppSource.setTabV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
+            throw new AppSource.EmptyPlaybackResponseException();
+        });
         AppSource.setMobileV5PlaybackForTest((vid, quality, identity, started, budgetMs) -> {
             throw new AppSource.EmptyPlaybackResponseException();
         });
@@ -38,7 +42,7 @@ public class PlaybackRecoveryTest {
     @After public void cleanup() {
         AppSource.setSinglePlaybackForTest(null); AppSource.setPlaybackTabForTest(null);
         AppSource.setPlaybackPostForTest(null);
-        AppSource.setMobileV5PlaybackForTest(null); AppSource.setPlayerSignaturePlaybackForTest(null);
+        AppSource.setMobileV5PlaybackForTest(null); AppSource.setTabV5PlaybackForTest(null); AppSource.setPlayerSignaturePlaybackForTest(null);
         PlaybackDevice.resetForTest(null);
     }
 
