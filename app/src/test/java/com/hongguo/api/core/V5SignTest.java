@@ -43,7 +43,7 @@ public class V5SignTest {
         String query = signed.url.substring(signed.url.indexOf('?') + 1);
         assertTrue("分集号在 query 里", query.contains("video_id=7600000000000000001"));
         assertTrue("取源档位参数", query.contains("need_all_video_definition=1"));
-        assertTrue("只出现一次 _rticket", 1, count(query, "_rticket="));
+        assertEquals("只出现一次 _rticket", 1, count(query, "_rticket="));
         // 分支判定必须用 MD5(空)，16 个零字节会算出另一种结果
         byte[] querySm3 = PureSign.sm3(query.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         assertTrue("空 body 用 MD5(空) 才落在分支 0",
