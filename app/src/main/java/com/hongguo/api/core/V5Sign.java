@@ -189,7 +189,9 @@ public final class V5Sign {
         RandomSource rnd = random == null ? new SecureRandomSource() : random;
         String query = null;
         // body 的 md5 与票号无关，只算一次；query 的 sm3 必须每轮重算（票号在 query 里）。
-        byte[] bodyMd5 = body != null && body.length > 0 ? PureSign.md5(body) : new byte[16];
+        // 与上游 Signer 一致：body 非 null（含空数组）一律 MD5(body)；只有 body == null 才用 16 零字节。
+        // 空数组必须算 MD5(空)，否则与 signPlaybackGet 的票号搜索口径不一致 → hashF13 分支不匹配。
+        byte[] bodyMd5 = body != null ? PureSign.md5(body) : new byte[16];
         for (int offset = 0; offset < TICKET_SEARCH_LIMIT; offset++) {
             long ticket = ticketStart + offset;
             // encode() 返回的就是 query 原文（不含 '?'），不能过 PureSign.queryOf ——
@@ -236,7 +238,9 @@ public final class V5Sign {
      */
     static String medusaV5(String url, byte[] body, int ts, Identity identity, RandomSource random) {
         byte[] query = PureSign.sm3(PureSign.queryOf(url).getBytes(StandardCharsets.UTF_8));
-        byte[] bodyMd5 = body != null && body.length > 0 ? PureSign.md5(body) : new byte[16];
+        // 与上游 Signer 一致：body 非 null（含空数组）一律 MD5(body)；只有 body == null 才用 16 零字节。
+        // 空数组必须算 MD5(空)，否则与 signPlaybackGet 的票号搜索口径不一致 → hashF13 分支不匹配。
+        byte[] bodyMd5 = body != null ? PureSign.md5(body) : new byte[16];
         byte[] f13 = PureSign.hashF13(query, bodyMd5, PureSign.le32(ts), ts, true);
 
         byte[] flags = new byte[8];
