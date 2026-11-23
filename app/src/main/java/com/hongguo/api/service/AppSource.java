@@ -147,7 +147,7 @@ public final class AppSource {
         // 唯一可用的取源路径是 video_tab 的 v5 无正文 GET（同步自 jackotom/hongguo-drama 7.7）。
         if (hasPlaybackTime(started, budgetMs)) {
             try {
-                Stream.VideoTrack tab = fetchTabV5(vid, quality, identity);
+                Stream.VideoTrack tab = tabV5.get(vid, quality, identity);
                 if (tab != null) {
                     PLAYBACK_IDENTITY.compareAndSet(null, identity);
                     return tab;
@@ -422,6 +422,17 @@ public final class AppSource {
     }
 
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
+
+    /** video_tab v5 首跳的可替换实现（JVM 测试注入）；生产实现见 {@link #fetchTabV5}。 */
+    interface TabV5 {
+        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception;
+    }
+
+    private static TabV5 tabV5 = AppSource::fetchTabV5;
+
+    static void setTabV5ForTest(TabV5 playback) {
+        tabV5 = playback == null ? AppSource::fetchTabV5 : playback;
+    }
 
     static void setPlaybackFallbackForTest(PlaybackFallback fallback) {
         playbackFallback = fallback == null ? AppSource::getPlain : fallback;

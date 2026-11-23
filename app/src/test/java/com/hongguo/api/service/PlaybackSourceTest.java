@@ -57,6 +57,8 @@ public class PlaybackSourceTest {
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
         // 默认让 video_tab 不可用，覆盖旧接口回退路径；需要新接口的用例自行注入。
+        // video_tab v5 首跳：CI 不能打真网络，桩成 null 走后续注入路径。
+        AppSource.setTabV5ForTest((vid, quality, identity) -> null);
         AppSource.setPlaybackTabForTest((vid, identity, deadline) -> null);
         // No single model in legacy-route fixtures; empty-response recovery has its own tests.
         AppSource.setSinglePlaybackForTest((vid, quality, identity, deadline) -> null);
@@ -66,6 +68,7 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackFallbackForTest(null);
         PlaybackDevice.resetForTest(null);
         AppSource.setPlaybackPostForTest(null);
+        AppSource.setTabV5ForTest(null);
         AppSource.setPlaybackTabForTest(null);
         AppSource.setSinglePlaybackForTest(null);
     }

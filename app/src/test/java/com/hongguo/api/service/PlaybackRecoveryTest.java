@@ -33,7 +33,7 @@ public class PlaybackRecoveryTest {
     }
 
     @After public void cleanup() {
-        AppSource.setSinglePlaybackForTest(null); AppSource.setPlaybackTabForTest(null);
+        AppSource.setSinglePlaybackForTest(null); AppSource.setTabV5ForTest(null); AppSource.setPlaybackTabForTest(null);
         AppSource.setPlaybackPostForTest(null); PlaybackDevice.resetForTest(null);
     }
 
@@ -54,6 +54,8 @@ public class PlaybackRecoveryTest {
 
     @Test public void firstPlayAndNextEpisodeEachRecoverAnEmptyReplyInTheSameSession() throws Exception {
         List<PlaybackDevice.Identity> used = new ArrayList<>();
+        // video_tab v5 首跳：CI 环境不能打真网络，桩成 null 让 fetch 直接进入后续路径。
+        AppSource.setTabV5ForTest((vid, quality, identity) -> null);
         AppSource.setSinglePlaybackForTest((vid, quality, identity, deadline) -> {
             used.add(identity);
             if (used.size() % 2 == 1) throw new AppSource.EmptyPlaybackResponseException();
