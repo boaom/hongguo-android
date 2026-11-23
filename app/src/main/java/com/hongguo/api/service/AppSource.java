@@ -272,6 +272,23 @@ public final class AppSource {
         throw empty;
     }
 
+    /**
+     * 空响应的诊断摘要：状态码 + 关键响应头。只取协议层字段，不含 URL、签名字节或身份标识，
+     * 可以安全地显示在 UI 上——它是判断「服务端限流 / 网关改写 / 上游故障」的唯一线索。
+     */
+    private static String describeResponse(Http.Resp response) {
+        StringBuilder out = new StringBuilder("HTTP ").append(response.status);
+        String[] keys = {"Content-Length", "Content-Encoding", "Content-Type", "Retry-After",
+                "x-tt-logid", "x-request-id", "Server"};
+        for (String key : keys) {
+            String value = response.header(key);
+            if (value == null || value.isEmpty()) continue;
+            if (value.length() > 40) value = value.substring(0, 40) + "…";
+            out.append(", ").append(key).append('=').append(value);
+        }
+        return out.append(", body=0B").toString();
+    }
+
     private static boolean hasPlaybackTime(long started, long budgetMs) {
         return budgetMs > 0 && (System.nanoTime() - started) / 1_000_000L < budgetMs;
     }
@@ -377,18 +394,30 @@ public final class AppSource {
 
     /** 播放接口返回空响应：原因不确定，由 fetch 在预算内有限恢复。 */
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
+        /** 出现空响应时的响应线索（状态、Content-*、服务端 request id），仅用于诊断。 */
+        public final String httpDetail;
+
         public EmptyPlaybackResponseException() {
-            this(null);
+            this(null, null);
         }
 
         public EmptyPlaybackResponseException(Throwable firstHopFailure) {
-            super("App 接口返回空响应，原因尚未确认，请稍后重试", firstHopFailure);
+            this(firstHopFailure, null);
         }
 
-        /** 首跳（video_tab v5 GET）的失败类型，供诊断显示；没有则返回 null。 */
+        public EmptyPlaybackResponseException(Throwable firstHopFailure, String httpDetail) {
+            super("App 接口返回空响应，原因尚未确认，请稍后重试", firstHopFailure);
+            this.httpDetail = httpDetail;
+        }
+
+        /** 首跳（video_tab v5 GET）的失败类型与响应线索，供诊断显示；没有则返回 null。 */
         public String firstHopReason() {
             Throwable t = getCause();
             if (t == null) return null;
+            if (t instanceof EmptyPlaybackResponseException) {
+                String detail = ((EmptyPlaybackResponseException) t).httpDetail;
+                return detail == null ? "空响应" : "空响应（" + detail + "）";
+            }
             String name = t.getClass().getSimpleName();
             if (t instanceof PlaybackHttpException) name += " " + ((PlaybackHttpException) t).status;
             String msg = t.getMessage();
@@ -972,7 +1001,7 @@ public final class AppSource {
         checkPlaybackCancellation();
         checkPlaybackResponse(response);
         if (response.status != 200) throw new PlaybackHttpException(response.status);
-        if (response.body.length == 0) throw new EmptyPlaybackResponseException();
+        if (response.body.length == 0) throw new EmptyPlaybackResponseException(null, describeResponse(response));
         if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
         Map<String, Object> model = parseTabResponse(vid, response.text());
         if (model == null) throw new IllegalStateException("video_tab 未返回本集播放模型");
