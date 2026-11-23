@@ -31,12 +31,15 @@ public class PlaybackRecoveryTest {
         AppSource.setPlaybackPostForTest((body, identity, host, deadline) -> { throw new AssertionError("Unexpected legacy request"); });
         // video_tab v5 首跳：CI 环境不能打真网络，全部用例桩成 null 让 fetch 进入已桩路径。
         AppSource.setTabV5ForTest((vid, quality, identity) -> null);
+        // 公开片源兜底：CI 不能打真网络，桩成不可用；相关用例单独注入。
+        AppSource.setPublicPlaybackForTest(episodeId -> { throw new java.io.IOException("公开片源不可用"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity, deadline) -> track);
     }
 
     @After public void cleanup() {
         AppSource.setSinglePlaybackForTest(null); AppSource.setTabV5ForTest(null); AppSource.setPlaybackTabForTest(null);
-        AppSource.setPlaybackPostForTest(null); PlaybackDevice.resetForTest(null);
+        AppSource.setPlaybackPostForTest(null); AppSource.setPublicPlaybackForTest(null);
+        PlaybackDevice.resetForTest(null);
     }
 
     @Test public void successfulIdentityIsReusedForAnotherEpisode() throws Exception {

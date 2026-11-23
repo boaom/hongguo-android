@@ -264,6 +264,28 @@ public final class AppSource {
                 else modelFailure.addSuppressed(e);
             }
         }
+        // 原生取源全部失败：先试公开单集媒体接口（不经 v5 签名，不受匿名设备风控）。
+        // 该接口当前对未授权调用一律 403，失败只记入 suppressed，不改变上报的失败类型。
+        if (hasPlaybackTime(started, budgetMs)) {
+            checkPlaybackCancellation();
+            try {
+                Stream.VideoTrack published = publicPlayback.fetch(vid);
+                if (published != null) {
+                    checkPlaybackCancellation();
+                    PLAYBACK_IDENTITY.compareAndSet(null, identity);
+                    return published;
+                }
+            } catch (InterruptedIOException cancelled) {
+                throw cancelled;
+            } catch (Exception unavailable) {
+                if (Thread.currentThread().isInterrupted()) throw unavailable;
+                if (modelFailure == null && failure == null) {
+                    // 原生失败与公开片源失败同等重要，一起带出去便于定位。
+                    unavailable.addSuppressed(new EmptyPlaybackResponseException(firstHopFailure));
+                    throw unavailable;
+                }
+            }
+        }
         // 模型错误比 HTTP/空响应更能说明本集的情况（如仅有 ByteVC2），优先报告。
         if (modelFailure != null) throw modelFailure;
         if (failure != null) throw failure;
@@ -478,6 +500,17 @@ public final class AppSource {
 
     static void setTabV5ForTest(TabV5 playback) {
         tabV5 = playback == null ? AppSource::fetchTabV5 : playback;
+    }
+
+    /** 公开单集媒体接口兜底的可替换实现（JVM 测试注入）；生产实现见 {@link PublicEpisodeSource}。 */
+    interface PublicPlayback {
+        Stream.VideoTrack fetch(String episodeId) throws Exception;
+    }
+
+    private static PublicPlayback publicPlayback = PublicEpisodeSource::fetch;
+
+    static void setPublicPlaybackForTest(PublicPlayback source) {
+        publicPlayback = source == null ? PublicEpisodeSource::fetch : source;
     }
 
     static void setPlaybackFallbackForTest(PlaybackFallback fallback) {
