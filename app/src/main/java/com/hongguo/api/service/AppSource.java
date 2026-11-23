@@ -280,8 +280,8 @@ public final class AppSource {
     public static final class PlaybackRejectedException extends IllegalStateException {
         private final boolean backoff;
 
-        PlaybackRejectedException(String message) { this(message, false); }
-        private PlaybackRejectedException(String message, boolean backoff) { super(message); this.backoff = backoff; }
+        public PlaybackRejectedException(String message) { this(message, false); }
+        public PlaybackRejectedException(String message, boolean backoff) { super(message); this.backoff = backoff; }
 
         private void forgetRejectedIdentity(PlaybackDevice.Identity identity) {
             if (!backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
@@ -360,7 +360,7 @@ public final class AppSource {
      */
     public static final class PlaybackHttpException extends IllegalStateException {
         public final int status;
-        PlaybackHttpException(int status) {
+        public PlaybackHttpException(int status) {
             super("App 接口 HTTP " + status);
             this.status = status;
         }
@@ -368,7 +368,7 @@ public final class AppSource {
 
     /** 播放接口返回空响应：原因不确定，由 fetch 在预算内有限恢复。 */
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
-        EmptyPlaybackResponseException() {
+        public EmptyPlaybackResponseException() {
             super("App 接口返回空响应，原因尚未确认，请稍后重试");
         }
     }
