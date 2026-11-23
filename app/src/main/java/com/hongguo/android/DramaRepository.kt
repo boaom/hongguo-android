@@ -276,8 +276,12 @@ fun readableFailure(error: Throwable, action: String): String {
             "播放服务繁忙，请约 $seconds 秒后再试。"
         else "播放服务繁忙，请稍后再试。"
     }
-    if (chain.any { it is com.hongguo.api.service.AppSource.EmptyPlaybackResponseException }) {
-        return "播放服务连续返回空响应，请稍后重试或选择其他集。"
+    chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.EmptyPlaybackResponseException }?.let { empty ->
+        // 把首跳（video_tab v5 GET）的失败原因带出来：否则只剩「空响应」，无法判断是
+        // 签名/路由问题还是服务端限流。原因只含异常类名与 HTTP 状态，不含 URL 或身份。
+        val reason = empty.firstHopReason()
+        return if (reason == null) "播放服务连续返回空响应，请稍后重试或选择其他集。"
+        else "播放服务连续返回空响应（取源通道：$reason），请稍后重试或选择其他集。"
     }
     return when {
         chain.any { it is UnknownHostException } -> "网络连接不可用，请检查网络后重试。"

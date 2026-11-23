@@ -145,6 +145,7 @@ public final class AppSource {
         IOException renewal = null;
         // 2026-11-20 起：player/v1 的 v5 POST 与旧的签名 video_tab 都只回 200 + 0 字节，
         // 唯一可用的取源路径是 video_tab 的 v5 无正文 GET（同步自 jackotom/hongguo-drama 7.7）。
+        Exception firstHopFailure = null;
         if (hasPlaybackTime(started, budgetMs)) {
             try {
                 Stream.VideoTrack tab = tabV5.get(vid, quality, identity);
@@ -155,7 +156,9 @@ public final class AppSource {
             } catch (InterruptedIOException cancelled) {
                 throw cancelled;
             } catch (Exception tabFailure) {
-                // 该路径不可用时按原顺序继续尝试其余接口。
+                // 该路径不可用时按原顺序继续尝试其余接口，但把原因留到最终错误里给 UI，
+                // 否则用户只看到「连续空响应」，无从判断是签名、路由还是服务端限流。
+                firstHopFailure = tabFailure;
                 Log.warn("video_tab v5 取源失败：" + tabFailure.getClass().getSimpleName());
             }
         }
@@ -264,7 +267,7 @@ public final class AppSource {
         // 模型错误比 HTTP/空响应更能说明本集的情况（如仅有 ByteVC2），优先报告。
         if (modelFailure != null) throw modelFailure;
         if (failure != null) throw failure;
-        EmptyPlaybackResponseException empty = new EmptyPlaybackResponseException();
+        EmptyPlaybackResponseException empty = new EmptyPlaybackResponseException(firstHopFailure);
         if (renewal != null) empty.addSuppressed(renewal);
         throw empty;
     }
@@ -375,7 +378,21 @@ public final class AppSource {
     /** 播放接口返回空响应：原因不确定，由 fetch 在预算内有限恢复。 */
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
         public EmptyPlaybackResponseException() {
-            super("App 接口返回空响应，原因尚未确认，请稍后重试");
+            this(null);
+        }
+
+        public EmptyPlaybackResponseException(Throwable firstHopFailure) {
+            super("App 接口返回空响应，原因尚未确认，请稍后重试", firstHopFailure);
+        }
+
+        /** 首跳（video_tab v5 GET）的失败类型，供诊断显示；没有则返回 null。 */
+        public String firstHopReason() {
+            Throwable t = getCause();
+            if (t == null) return null;
+            String name = t.getClass().getSimpleName();
+            if (t instanceof PlaybackHttpException) name += " " + ((PlaybackHttpException) t).status;
+            String msg = t.getMessage();
+            return msg == null || msg.isEmpty() ? name : name + "：" + msg;
         }
     }
 
