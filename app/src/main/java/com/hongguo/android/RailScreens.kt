@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -57,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
@@ -115,8 +113,10 @@ private fun railColorsFrom(p: HongguoPalette) = RailColors(
 
 internal val LocalRailColors = staticCompositionLocalOf { RailLightColors }
 
+/** Follows the palette [HongguoTheme] already resolved, so forced previews and the app shell never disagree. */
 @Composable
-private fun RailTheme(dark: Boolean, content: @Composable () -> Unit) {
+private fun RailTheme(content: @Composable () -> Unit) {
+    val dark = LocalHongguoPalette.current.isDark
     CompositionLocalProvider(LocalRailColors provides if (dark) RailDarkColors else RailLightColors) {
         content()
     }
@@ -506,7 +506,7 @@ private fun RailFeaturedItem(card: DramaCard, modifier: Modifier = Modifier, onO
 
 @Composable
 fun RailHome(state: HongguoUiState, model: HongguoViewModel) {
-    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+    RailTheme {
         val colors = LocalRailColors.current
         val items = state.home.items
         val resume = state.history.firstOrNull()
@@ -651,7 +651,7 @@ private fun RailEpisodeCell(episode: Int, watched: Int, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
-    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+    RailTheme {
         val colors = LocalRailColors.current
         val items = state.category.items
         var showFilters by rememberSaveable { mutableStateOf(false) }
@@ -781,7 +781,7 @@ fun RailDiscover(state: HongguoUiState, model: HongguoViewModel) {
 
 @Composable
 fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel) {
-    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+    RailTheme {
     val card = state.selectedCard ?: return@RailTheme
     val colors = LocalRailColors.current
     val detail = state.detail
@@ -790,7 +790,7 @@ fun RailDetail(state: HongguoUiState, model: HongguoViewModel, accountModel: Acc
 
     Column(Modifier.fillMaxSize().background(colors.surface).testTag("rail_detail")) {
         Row(
-            Modifier.fillMaxWidth().statusBarsPadding().padding(start = 6.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
+            Modifier.fillMaxWidth().padding(start = 6.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = model::closeDetail, modifier = Modifier.testTag("rail_detail_back")) {
@@ -1099,7 +1099,7 @@ private fun RailLibraryRow(
 
 @Composable
 fun RailLibrary(state: HongguoUiState, model: HongguoViewModel, accountModel: AccountViewModel) {
-    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+    RailTheme {
         val colors = LocalRailColors.current
         val history = state.tab == AppTab.HISTORY
         val entries = if (history) state.history else state.favorites
@@ -1255,7 +1255,7 @@ fun RailMine(
     onAccount: () -> Unit = { model.selectTab(AppTab.ACCOUNT) },
     openSettings: () -> Unit = { model.selectTab(AppTab.SETTINGS) },
 ) {
-    RailTheme(resolveDark(state.themeMode, AppThemeStyle.RAIL, isSystemInDarkTheme())) {
+    RailTheme {
         val colors = LocalRailColors.current
         LazyColumn(
             Modifier.fillMaxSize().background(colors.surface).testTag("rail_mine"),

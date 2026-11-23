@@ -82,8 +82,7 @@ class AppThemeStyleTest {
         AppThemeStyle.entries.forEach { style ->
             listOf(style.palette(false), style.palette(true)).forEach { palette ->
                 val expected = when (style) {
-                    AppThemeStyle.RAIL -> palette.accent
-                    AppThemeStyle.WARM -> if (palette.isDark) palette.accentText else palette.accent
+                    AppThemeStyle.RAIL, AppThemeStyle.WARM -> if (palette.isDark) palette.accentText else palette.accent
                     else -> palette.ink
                 }
                 assertEquals("${style.key} dark=${palette.isDark}", expected, palette.navigationActiveColor(style))
@@ -116,6 +115,26 @@ class AppThemeStyleTest {
                 "notice" to contrast(p.noticeText, p.noticeBackground),
             ).forEach { (name, ratio) -> assertTrue("${p.canvas} $name contrast $ratio", ratio >= 4.5) }
         }
+    }
+
+    /** The selected bottom-bar label is 12sp text, so it needs the same 4.5:1 as body copy, on both bars. */
+    @Test
+    fun selectedNavigationLabelMeetsContrastOnEveryTheme() {
+        AppThemeStyle.entries.forEach { style ->
+            listOf(style.palette(false), style.palette(true)).forEach { p ->
+                val active = p.navigationActiveColor(style)
+                listOf("canvas" to p.canvas, "card" to p.card).forEach { (ground, color) ->
+                    val ratio = contrast(active, color)
+                    assertTrue("${style.key} dark=${p.isDark} active on $ground contrast $ratio", ratio >= 4.5)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun onlyPictureTopDetailPagesDrawUnderTheStatusBar() {
+        assertEquals(setOf(AppThemeStyle.IMMERSIVE, AppThemeStyle.CARDS),
+            AppThemeStyle.entries.filter { it.detailPictureUnderStatusBar }.toSet())
     }
 
     private fun contrast(a: Color, b: Color): Double {
