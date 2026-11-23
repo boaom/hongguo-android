@@ -39,11 +39,24 @@ public class MobilePlayerV5TabRequestTest {
         assertEquals("did", req.getHeaders().get("x-tt-store-region-src"));
 
         String query = req.getUrl().substring(req.getUrl().indexOf('?') + 1);
-        for (String field : new String[]{"aid=8662", "video_id=7600000000000000001",
-                "video_id_type=0", "device_level=1", "need_all_video_definition=1",
-                "video_platform=1024", "source=0", "from_video_id="}) {
+        // 37 个字段按抓包成功请求逐项对齐；设备参数必须与 TAB_UA 自洽，
+        // 否则服务端判定伪造客户端，回 200 + Content-Length:0。
+        for (String field : new String[]{
+                "aid=8662", "app_name=novelread", "channel=update_64",
+                "version_code=73932", "version_name=7.3.9.32",
+                "device_type=25053RT47C", "device_brand=Redmi",
+                "os=android", "os_api=36", "os_version=16",
+                "manifest_version_code=73932", "update_version_code=73932",
+                "resolution=1280*2772", "dpi=520", "pv_player=73932",
+                "ssmix=a", "ac=wifi", "language=zh", "host_abi=arm64-v8a",
+                "dragon_device_type=phone", "compliance_status=0",
+                "need_personal_recommend=1", "player_so_load=1",
+                "is_android_pad_screen=0",
+                "video_id=7600000000000000001", "video_id_type=0", "device_level=1",
+                "need_all_video_definition=1", "video_platform=1024", "source=0"}) {
             assertTrue("query 应含 " + field, query.contains(field));
         }
+        assertTrue("不应再带空 from_video_id", !query.contains("from_video_id"));
         assertTrue("票号只出现一次", query.indexOf("_rticket=") == query.lastIndexOf("_rticket="));
     }
 

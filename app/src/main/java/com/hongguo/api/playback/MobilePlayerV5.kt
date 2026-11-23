@@ -27,14 +27,25 @@ object MobilePlayerV5 {
     @JvmStatic
     fun requestVideoTab(id: String, deviceId: String, iid: String, cdid: String, now: Long): TabRequest {
         require(listOf(id, deviceId, iid).all { it.matches(Regex("[0-9]{1,30}")) })
+        // 设备参数必须与 TAB_UA 自洽：UA 声明 73932 / Android 16 / 25053RT47C / Redmi，
+        // 而旧 values 写的是 74332 / Android 12 / PGT-AN10(华为)，两者互相矛盾，服务端
+        // 可据此判定伪造客户端并回 200+空正文。以下 37 个字段按抓包中成功请求逐项对齐。
         val values = linkedMapOf(
-            "aid" to "8662", "app_name" to "novelread", "version_code" to "74332",
-            "version_name" to "7.4.3.32", "channel" to "vivo_8662_64", "device_platform" to "android",
-            "device_type" to "PGT-AN10", "os_version" to "12", "update_version_code" to "74332",
-            "iid" to iid, "cdid" to cdid, "device_id" to deviceId,
+            "iid" to iid, "device_id" to deviceId, "cdid" to cdid,
+            "ac" to "wifi", "channel" to "update_64",
+            "aid" to "8662", "app_name" to "novelread",
+            "version_code" to "73932", "version_name" to "7.3.9.32",
+            "device_platform" to "android", "os" to "android", "ssmix" to "a",
+            "device_type" to "25053RT47C", "device_brand" to "Redmi", "language" to "zh",
+            "os_api" to "36", "os_version" to "16",
+            "manifest_version_code" to "73932", "resolution" to "1280*2772", "dpi" to "520",
+            "update_version_code" to "73932", "host_abi" to "arm64-v8a",
+            "dragon_device_type" to "phone", "pv_player" to "73932",
+            "compliance_status" to "0", "need_personal_recommend" to "1",
+            "player_so_load" to "1", "is_android_pad_screen" to "0",
             "video_id" to id, "video_id_type" to "0", "device_level" to "1",
             "need_all_video_definition" to "1", "need_mp4_align" to "0", "use_os_player" to "0",
-            "video_platform" to "1024", "source" to "0", "from_video_id" to "",
+            "video_platform" to "1024", "source" to "0",
         )
         val signed = signer.signPlaybackGet(TAB_ENDPOINT, values, now)
         // 官方形态带设备 Cookie 与 store-region 头（抓包实证）：服务端据此判定设备/区域，
