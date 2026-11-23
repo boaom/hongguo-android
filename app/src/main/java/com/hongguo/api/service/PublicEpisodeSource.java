@@ -1,5 +1,6 @@
 package com.hongguo.api.service;
 
+import com.hongguo.api.util.Config;
 import com.hongguo.api.util.Http;
 import com.hongguo.api.util.Json;
 
