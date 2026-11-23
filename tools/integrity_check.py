@@ -32,9 +32,14 @@ ANCHORS = {
         r"PLAYBACK_IDENTITY\s*\.\s*compareAndSet",
         r"checkPlaybackCancellation\s*\(",
         r"hasPlaybackTime\s*\(",
-        r"setMobileV5PlaybackForTest",
-        r"setPlayerSignaturePlaybackForTest",
+        # 2026-11-23 合并上游 0.7.33 后：播放链换成 Kotlin MobilePlayerV5 +
+        # fetchTabV5/video_tab v5 GET；注入缝以上游为准。
+        r"fetchTabV5\s*\(",
         r"setSinglePlaybackForTest",
+        r"setPlaybackTabForTest",
+        r"setPlaybackFallbackForTest",
+        r"discardPlaybackIdentity",
+        r"PlaybackBackoffException",
     ],
 }
 
@@ -138,7 +143,15 @@ def main():
         base = "HEAD~1"
     files = changed_files(base)
     print(f"基线 {base}，改动文件 {len(files)} 个")
+    # 本次合并主动删除的旧实现文件（测的是已不存在的"两跳"链路）；
+    # 删除是预期行为，不能当作"缺失文件"报错。
+    removed = {
+        "app/src/test/java/com/hongguo/api/service/PlaybackNewHopsTest.java",
+        "app/src/test/java/com/hongguo/api/service/MobileV5ResponseTest.java",
+    }
     for f in files:
+        if f in removed or not (ROOT / f).exists():
+            continue
         if f.endswith((".java", ".kt", ".kts", ".md", ".yml")):
             check_text(f)
     check_anchors()

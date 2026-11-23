@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
 import java.util.zip.GZIPInputStream;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 基于 HttpURLConnection 的 HTTP 客户端（对应 Node 侧的 fetch / http.request）。
@@ -86,19 +86,9 @@ public final class Http {
         return send(req, 0, false, Long.MAX_VALUE);
     }
 
-    /** 单参播放请求入口：启用 gzip 透明解压， episode 预算交给上层 AppSource 控制。 */
-    public static Resp sendPlaybackMetadataOnce(Req req) throws IOException {
-        return send(req, 0, true, Long.MAX_VALUE);
-    }
-
-    /**
-     * 播放元数据请求：透明处理 gzip 响应，并在幂等 GET 的连接中断时重试一次。
-     * 移植自上游 0.7.31 —— Android 的 HttpURLConnection 对「Content-Encoding: gzip」
-     * 的空响应会直接 EOF，表现为 HTTP 200 + 0 字节，必须显式声明 Accept-Encoding 并自行解压。
-     */
+    /** Replay only an idempotent metadata GET, once, within both the request and episode budgets. */
     public static Resp sendPlaybackMetadata(Req req, long episodeDeadline) throws IOException {
-        long deadline = Math.min(episodeDeadline,
-                System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(req.timeoutMs));
+        long deadline = Math.min(episodeDeadline, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(req.timeoutMs));
         try {
             return send(req, 0, true, deadline);
         } catch (SocketException disconnected) {
@@ -107,15 +97,21 @@ public final class Http {
         }
     }
 
+    /** Supplemental metadata reads share the episode budget and keep their single-attempt behavior. */
+    public static Resp sendPlaybackMetadataOnce(Req req, long episodeDeadline) throws IOException {
+        long deadline = Math.min(episodeDeadline, System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(req.timeoutMs));
+        return send(req, 0, true, deadline);
+    }
+
     private static Resp send(Req req, int redirects, boolean playback, long playbackDeadline) throws IOException {
         if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("请求已取消");
         int timeout = Math.max(1000, Math.min(15000, req.timeoutMs));
-        long deadline = System.nanoTime() + timeout * 1000000L;
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
         if (playback) {
             deadline = Math.min(deadline, playbackDeadline);
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0) throw new SocketTimeoutException("播放取流超时");
-            timeout = (int) Math.max(1L, remaining / 1000000L);
+            timeout = (int) Math.max(1L, TimeUnit.NANOSECONDS.toMillis(remaining));
         }
         HttpURLConnection conn;
         try { conn = open(req.url, req.followRedirect); }
@@ -125,6 +121,7 @@ public final class Http {
             conn.setConnectTimeout(Math.min(timeout, 8000));
             conn.setReadTimeout(timeout);
             conn.setInstanceFollowRedirects(false);
+            // Android's transparent gzip decoder otherwise throws EOF on an empty gzip-labelled response.
             if (playback) conn.setRequestProperty("Accept-Encoding", "gzip");
             for (Map.Entry<String, String> e : req.headers.entrySet()) {
                 if (e.getValue() != null) {
@@ -142,6 +139,10 @@ public final class Http {
             }
             int status = conn.getResponseCode();
             if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+                String retryAfter = conn.getHeaderField("Retry-After");
+                if (playback && retryAfter != null && !retryAfter.trim().isEmpty()) {
+                    return new Resp(status, new byte[0], conn.getHeaderFields());
+                }
                 if (!req.followRedirect) return new Resp(status, new byte[0], conn.getHeaderFields());
                 if (redirects >= 3 || !(req.method.equals("GET") || req.method.equals("HEAD")))
                     throw new IOException("不支持的服务重定向");
@@ -171,7 +172,8 @@ public final class Http {
         } catch (InterruptedIOException ignored) {
             throw new InterruptedIOException("请求已取消或超时");
         } catch (SocketException failure) {
-            String message = String.valueOf(failure.getMessage()).toLowerCase(Locale.ROOT);
+            // Only connection refusal/reset is eligible for the playback GET retry. Drop the original URL.
+            String message = String.valueOf(failure.getMessage()).toLowerCase(java.util.Locale.ROOT);
             if (playback && (failure instanceof ConnectException || message.contains("connection reset")
                     || message.contains("econnreset") || message.contains("broken pipe"))) {
                 throw new SocketException("网络连接中断");

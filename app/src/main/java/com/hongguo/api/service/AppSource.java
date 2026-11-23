@@ -1,10 +1,8 @@
 package com.hongguo.api.service;
 
-import com.hongguo.api.core.PlaybackSignature;
 import com.hongguo.api.core.PlayerSign;
 import com.hongguo.api.core.PureSign;
 import com.hongguo.api.core.Spade;
-import com.hongguo.api.core.V5Sign;
 import com.hongguo.api.util.Crypto;
 import com.hongguo.api.util.Http;
 import com.hongguo.api.util.Json;
@@ -15,6 +13,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -23,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * App 取直链，移植自 jackotom/hongguo-drama 的 src/native/app-source.js。
@@ -69,17 +69,15 @@ public final class AppSource {
     // Successful anonymous playback identities only; unrelated to recommendation and account devices.
     private static final java.util.concurrent.atomic.AtomicReference<PlaybackDevice.Identity> PLAYBACK_IDENTITY =
             new java.util.concurrent.atomic.AtomicReference<>();
-    /** 上游 0.7.31：单集空响应只读 2 次；空响应不是身份问题，多打几轮只会烧预算。 */
-    static final int SINGLE_ATTEMPTS = 2;
 
     /**
      * 丢弃进程内缓存的匿名播放身份。用户在连续空响应时可显式「换身份重试」——
-     * 上游会按 device_id/iid 维度间歇风控（参考 issue #72「卸载重装就能播」），
-     * 换一批新身份等价于卸载重装，且不打断正常流程的身份复用。
+     * 上游会按 device_id/iid 维度间歇风控，换一批新身份等价于卸载重装，且不打断正常流程的身份复用。
      */
     public static void discardPlaybackIdentity() {
         PLAYBACK_IDENTITY.set(null);
     }
+    static final int SINGLE_ATTEMPTS = 2;
 
     /** 接口地址（尾斜杠照抄原实现，签名与路由都以它为准）。 */
     private static final String VIDEO_API =
@@ -136,6 +134,7 @@ public final class AppSource {
             throw new IllegalArgumentException("分集编号无效");
         }
         long started = System.nanoTime();
+        long deadline = started + TimeUnit.MILLISECONDS.toNanos(budgetMs);
         checkPlaybackCancellation();
         if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
         byte[] body = Json.stringify(payload(vid)).getBytes(StandardCharsets.UTF_8);
@@ -144,94 +143,29 @@ public final class AppSource {
         Exception failure = null;
         Exception modelFailure = null;
         IOException renewal = null;
-        // 2026-11-20 上游再变：player/v1 的 v5 POST 与旧签名 video_tab 都只回 200+空正文，
-        // 唯一可用的是 video_tab 的 v5 无正文 GET（上游 0.7.32 / jackotom 7.7，真机验证）。
-        // 它排最前，失败再按原顺序走其余接口，不改变既有回退语义。
+        // 2026-11-20 起：player/v1 的 v5 POST 与旧的签名 video_tab 都只回 200 + 0 字节，
+        // 唯一可用的取源路径是 video_tab 的 v5 无正文 GET（同步自 jackotom/hongguo-drama 7.7）。
         if (hasPlaybackTime(started, budgetMs)) {
             try {
-                Stream.VideoTrack tab = tabV5Playback.get(vid, quality, identity, started, budgetMs);
+                Stream.VideoTrack tab = fetchTabV5(vid, quality, identity);
                 if (tab != null) {
-                    checkPlaybackCancellation();
                     PLAYBACK_IDENTITY.compareAndSet(null, identity);
                     return tab;
                 }
             } catch (InterruptedIOException cancelled) {
                 throw cancelled;
-            } catch (PlaybackBackoffException backoff) {
-                throw backoff;
             } catch (Exception tabFailure) {
-                if (Thread.currentThread().isInterrupted()) throw tabFailure;
                 // 该路径不可用时按原顺序继续尝试其余接口。
+                Log.warn("video_tab v5 取源失败：" + tabFailure.getClass().getSimpleName());
             }
         }
-        // 2026-11-16 上游再变：v3 Medusa 形态一律回 200 + 空正文，换身份无效。权威解是
-        // N3urda/hongguoTV 18c37c2 的 v5 形态（v04.10.03，端点 .../multi_video_model/player/v1，
-        // gzip 体 + 票号选分支 0 的 hashF13/AesV3/medusa）。它排最前，空响应再落到下面 11-13 的两跳。
-        try {
-            Stream.VideoTrack v5 = mobileV5Playback.get(vid, quality, identity, started, budgetMs);
-            checkPlaybackCancellation();
-            PLAYBACK_IDENTITY.compareAndSet(null, identity);
-            return v5;
-        } catch (InterruptedIOException e) {
-            throw e;
-        } catch (PlaybackBackoffException e) {
-            // 上游明确 Retry-After:换身份/换端点都只会空转预算,立即停并把繁忙信号交给 UI。
-            throw e;
-        } catch (EmptyPlaybackResponseException e) {
-            // 与旧路径的空响应同类，交给下面的 11-13 两跳与旧路径。
-            //
-            // 这里刻意不清缓存身份：v5 空响应是上游当前常态（换身份无效），清掉会让每次 fetch 都
-            // 重新注册，直接废掉「复用成功的匿名身份」。清理只发生在「确实用该身份试过并失败」的
-            // 单集路径与旧路由，且都是 CAS——某一跳的失败不得驱逐别的请求已成功的身份。
-            //
-            // 上游不变量用例 PlaybackRecoveryTest.staleFailureCannotEvictAnotherRequestsSuccessfulIdentity
-            // 把两跳都桩成空响应，因此每次 fetch 都会走到本分支：一旦在此清身份，它的注册数断言就会失败
-            // （run 43921055405 实测如此）。本仓库另有直接覆盖本决策的用例：
-            // PlaybackNewHopsTest.v5EmptyKeepsCachedIdentityForNextFetch——其第 2 次 fetch 在 v5 跳内
-            // 耗尽预算，单集与旧路由都不会执行，因此没有成功路径把身份 CAS 写回来遮蔽变异。
-        } catch (PlaybackRejectedException e) {
-            // 业务风控拒绝（1003/101144/110001/110002）：换端点换身份都解决不了，立刻终止整条链，
-            // 否则 11-13 两跳与旧路径只会继续用新身份撞风控。
-            PLAYBACK_IDENTITY.compareAndSet(identity, null);
-            throw e;
-        } catch (PlaybackHttpException | IOException e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
-            stopIfPlaybackRejected(e, identity);
-            failure = e;
-        } catch (Exception e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
-            stopIfPlaybackRejected(e, identity);
-            modelFailure = e;
-        }
-        // 2026-11-13 上游把播放形态又推进了一版：先按参考实现（hongguo-web f662f0b/1b00f06）的
-        // video_tab 签名 GET（73932 / 7.3.9.32）打，空响应再换新身份用旧 POST（gzip 体，74332 / 7.4.3.32）；
-        // 两跳都用 551 真签名（PlaybackSignature）。都空才退到下面的旧路径。
-        try {
-            return playerSignaturePlayback.get(vid, quality, started, budgetMs);
-        } catch (InterruptedIOException e) {
-            throw e;
-        } catch (EmptyPlaybackResponseException e) {
-            // 与旧路径的空响应同类，交给下面的路径。
-        } catch (PlaybackRejectedException e) {
-            throw e;
-        } catch (PlaybackHttpException | IOException e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
-            stopIfPlaybackRejected(e, identity);
-            failure = e;
-        } catch (Exception e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
-            stopIfPlaybackRejected(e, identity);
-            modelFailure = e;
-        }
-        // LiuWQ0809/hongguo-android 89169c0: recover empty single-endpoint replies first.
-        // 上游 0.7.30（N3urda/hongguoTV 6672b55）：v5 mobile endpoint first; bounded recovery from
-        // LiuWQ0809 89169c0. 我方在这里保留更严的链路：v5 → 11-13 两跳 → 单集有限恢复 → 兼容路由。
+        // N3urda/hongguoTV 6672b55: v5 mobile endpoint first; bounded recovery from LiuWQ0809 89169c0.
         // Retain our route order, model-error precedence, cancellation and overall request budget.
         try {
             for (int attempt = 0; attempt < SINGLE_ATTEMPTS && hasPlaybackTime(started, budgetMs); attempt++) {
                 checkPlaybackCancellation();
                 try {
-                    Stream.VideoTrack track = singlePlayback.get(vid, quality, identity);
+                    Stream.VideoTrack track = singlePlayback.get(vid, quality, identity, deadline);
                     checkPlaybackCancellation();
                     if (track != null) {
                         PLAYBACK_IDENTITY.compareAndSet(null, identity);
@@ -239,11 +173,11 @@ public final class AppSource {
                     }
                     break; // No usable model; compatibility routes may still supply one.
                 } catch (EmptyPlaybackResponseException empty) {
-                    // 上游 0.7.31：空响应不是身份问题——不清缓存身份，也不换新身份重试（换身份无效，
-                    // 只会多花一次注册和一轮预算）。同一身份再读一次后交给兼容路由。
                     if (attempt == SINGLE_ATTEMPTS - 1 || !hasPlaybackTime(started, budgetMs)) throw empty;
-                    try { Thread.sleep(300); }
-                    catch (InterruptedException cancelled) {
+                    long remaining = deadline - System.nanoTime();
+                    try {
+                        TimeUnit.NANOSECONDS.sleep(Math.min(TimeUnit.MILLISECONDS.toNanos(300), remaining));
+                    } catch (InterruptedException cancelled) {
                         Thread.currentThread().interrupt();
                         throw new InterruptedIOException("播放请求已取消");
                     }
@@ -252,19 +186,34 @@ public final class AppSource {
                 }
             }
         } catch (PlaybackRejectedException e) {
-            PLAYBACK_IDENTITY.compareAndSet(identity, null);
-            throw e;
-        } catch (InterruptedIOException e) {
+            e.forgetRejectedIdentity(identity);
             throw e;
         } catch (EmptyPlaybackResponseException e) {
             // Only the finite single-endpoint recovery has been exhausted; then try compatibility routes.
         } catch (PlaybackHttpException | IOException e) {
-            stopIfPlaybackRejected(e, identity);
-            if (Thread.currentThread().isInterrupted()) throw e;
+            stopIfPlaybackTerminal(e, identity);
             failure = e;
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) throw e;
             modelFailure = e;
+        }
+        if (useLegacySingle && hasPlaybackTime(started, budgetMs)) {
+            checkPlaybackCancellation();
+            try {
+                Stream.VideoTrack track = fetchSingle(vid, quality, identity, deadline);
+                checkPlaybackCancellation();
+                if (track != null) { PLAYBACK_IDENTITY.compareAndSet(null, identity); return track; }
+            } catch (PlaybackRejectedException error) {
+                error.forgetRejectedIdentity(identity); throw error;
+            } catch (EmptyPlaybackResponseException empty) {
+                // Continue with the existing compatibility readers.
+            } catch (PlaybackHttpException | IOException error) {
+                stopIfPlaybackTerminal(error, identity);
+                failure = error;
+            } catch (Exception error) {
+                if (Thread.currentThread().isInterrupted()) throw error;
+                if (modelFailure == null) modelFailure = error;
+            }
         }
         for (PlaybackRoute route : PLAYBACK_ROUTES) {
             checkPlaybackCancellation();
@@ -282,32 +231,30 @@ public final class AppSource {
             if (!hasPlaybackTime(started, budgetMs)) break;
             Map<String, Object> j;
             try {
-                j = route.post ? playbackPost.post(body, identity, route.host)
-                        : playbackTab.get(vid, identity, playbackDeadline(started, budgetMs));
+                j = route.post ? playbackPost.post(body, identity, route.host, deadline) : playbackTab.get(vid, identity, deadline);
             } catch (PlaybackRejectedException e) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                e.forgetRejectedIdentity(identity);
                 throw e;
             } catch (EmptyPlaybackResponseException e) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
                 continue;
             } catch (PlaybackHttpException | IOException e) {
-                stopIfPlaybackRejected(e, identity);
-                if (Thread.currentThread().isInterrupted()) throw e;
+                stopIfPlaybackTerminal(e, identity);
                 failure = e;
                 continue;
             }
             if (j == null) continue;
             try {
                 checkPlaybackCancellation();
-                Stream.VideoTrack track = parseModel(vid, j, quality);
+                Stream.VideoTrack track = parseModel(vid, j, quality, deadline);
                 checkPlaybackCancellation();
                 PLAYBACK_IDENTITY.compareAndSet(null, identity);
                 return track;
             } catch (PlaybackRejectedException e) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
+                e.forgetRejectedIdentity(identity);
                 throw e;
             } catch (InterruptedIOException e) {
-                throw e;
+                stopIfPlaybackTerminal(e, identity);
+                failure = e;
             } catch (Exception e) {
                 if (Thread.currentThread().isInterrupted()) throw e;
                 if (modelFailure == null) modelFailure = e;
@@ -322,12 +269,6 @@ public final class AppSource {
         throw empty;
     }
 
-    /** 把「起点 + 预算毫秒」换成 nanoTime 截止时刻，供 GET 重试与超时使用。 */
-    static long playbackDeadline(long started, long budgetMs) {
-        return budgetMs <= 0 ? started
-                : started + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(budgetMs);
-    }
-
     private static boolean hasPlaybackTime(long started, long budgetMs) {
         return budgetMs > 0 && (System.nanoTime() - started) / 1_000_000L < budgetMs;
     }
@@ -337,35 +278,48 @@ public final class AppSource {
     }
 
     public static final class PlaybackRejectedException extends IllegalStateException {
-        public PlaybackRejectedException(String message) { super(message); }
+        private final boolean backoff;
+
+        PlaybackRejectedException(String message) { this(message, false); }
+        private PlaybackRejectedException(String message, boolean backoff) { super(message); this.backoff = backoff; }
+
+        private void forgetRejectedIdentity(PlaybackDevice.Identity identity) {
+            if (!backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
+        }
+    }
+
+    /** 上游要求限流退避（Retry-After）：换身份/换端点都只会空转预算，立即停并让 UI 显示等待秒数。 */
+    public static final class PlaybackBackoffException extends IllegalStateException {
+        public final String retryAfter;
+        public PlaybackBackoffException(String retryAfter) {
+            super("播放服务繁忙，请稍后重试");
+            this.retryAfter = retryAfter;
+        }
     }
 
     private static void checkPlaybackRejection(int status) {
-        if (status == 403 || status == 429)
-            throw new PlaybackRejectedException("播放服务拒绝请求（HTTP " + status + "）");
+        if (status == 401 || status == 403 || status == 429)
+            throw new PlaybackRejectedException("播放服务拒绝请求（HTTP " + status + "）", status == 429);
     }
 
-    /**
-     * 播放元数据响应判定（移植上游 0.7.31）：除 403/429 明确拒绝外，
-     * 「503」或「200 + 空 body」且带 Retry-After 时，是上游要求限流退避——立即停，
-     * 不再换身份/端点空转。交由 PlaybackBackoffException 传到 UI 显示等待秒数。
-     */
     static void checkPlaybackResponse(Http.Resp response) {
         checkPlaybackRejection(response.status);
         String wait = response.header("Retry-After");
-        if (wait != null && !wait.trim().isEmpty()
-                && (response.status == 503 || (response.status == 200 && response.body.length == 0))) {
+        if (wait != null && !wait.trim().isEmpty()) {
+            // 用专用异常把秒数带给 UI（DramaRepository.readableFailure 会读 retryAfter）。
             throw new PlaybackBackoffException(wait.trim());
         }
     }
 
-    private static void stopIfPlaybackRejected(Exception error, PlaybackDevice.Identity identity) {
+    private static void stopIfPlaybackTerminal(Exception error, PlaybackDevice.Identity identity) throws InterruptedIOException {
+        checkPlaybackCancellation();
+        if (error instanceof InterruptedIOException && !(error instanceof SocketTimeoutException)) {
+            throw (InterruptedIOException) error;
+        }
         if (error instanceof PlaybackHttpException) {
             int status = ((PlaybackHttpException) error).status;
-            if (status == 403 || status == 429) {
-                PLAYBACK_IDENTITY.compareAndSet(identity, null);
-                checkPlaybackRejection(status);
-            }
+            if (status == 401 || status == 403) PLAYBACK_IDENTITY.compareAndSet(identity, null);
+            checkPlaybackRejection(status);
         }
     }
 
@@ -399,10 +353,10 @@ public final class AppSource {
     static final long PLAYBACK_BUDGET_MS = 20_000L;
     private static final int PLAYBACK_TIMEOUT_MS = 8_000;
 
-    /** 播放接口 HTTP 状态异常：换路径可能恢复，与业务或格式错误不同。状态对 UI 可见，用于判断是否值得重试。 */
-    public static final class PlaybackHttpException extends IllegalStateException {
-        public final int status;
-        public PlaybackHttpException(int status) {
+    /** 播放接口 HTTP 状态异常：换路径可能恢复，与业务或格式错误不同。 */
+    static final class PlaybackHttpException extends IllegalStateException {
+        final int status;
+        PlaybackHttpException(int status) {
             super("App 接口 HTTP " + status);
             this.status = status;
         }
@@ -410,23 +364,14 @@ public final class AppSource {
 
     /** 播放接口返回空响应：原因不确定，由 fetch 在预算内有限恢复。 */
     public static final class EmptyPlaybackResponseException extends IllegalStateException {
-        public EmptyPlaybackResponseException() {
+        EmptyPlaybackResponseException() {
             super("App 接口返回空响应，原因尚未确认，请稍后重试");
-        }
-    }
-
-    /** 上游在空响应里带 Retry-After：服务繁忙的明确信号，不该再换身份空转预算。 */
-    public static final class PlaybackBackoffException extends IllegalStateException {
-        public final String retryAfter;
-        public PlaybackBackoffException(String retryAfter) {
-            super("播放服务繁忙，请稍后重试");
-            this.retryAfter = retryAfter;
         }
     }
 
     /** 可替换的播放请求（JVM 测试注入）；生产实现见 {@link #postPlayback}. */
     interface PlaybackPost {
-        Map<String, Object> post(byte[] body, PlaybackDevice.Identity identity, String host)
+        Map<String, Object> post(byte[] body, PlaybackDevice.Identity identity, String host, long deadline)
                 throws Exception;
     }
 
@@ -436,90 +381,22 @@ public final class AppSource {
         playbackPost = post == null ? AppSource::postPlayback : post;
     }
 
-    /** 可替换的优先取流（JVM 测试注入）；生产实现见 {@link #fetchSingle}。 */
+    /** 可替换的优先取流（JVM 测试注入）；生产实现见 {@link #fetchPrimary}。 */
     interface SinglePlayback {
-        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity) throws Exception;
+        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity, long deadline) throws Exception;
     }
 
-    private static SinglePlayback singlePlayback = AppSource::fetchSingle;
+    private static SinglePlayback singlePlayback = AppSource::fetchPrimary;
+    private static boolean useLegacySingle = true;
 
     static void setSinglePlaybackForTest(SinglePlayback playback) {
         PLAYBACK_IDENTITY.set(null);
-        singlePlayback = playback == null ? AppSource::fetchSingle : playback;
-    }
-
-    /**
-     * v5 播放形态（2026-11-16 上游要求）；JVM 测试注入。
-     * 生产实现见 {@link #fetchMobileV5}，默认在抓错时抛空响应，交给后面的 11-13 两跳与旧路径。
-     */
-    interface MobileV5Playback {
-        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity,
-                long started, long budgetMs) throws Exception;
-    }
-
-    /** video_tab 的 v5 无正文 GET（2026-11-20 起唯一可用的取源形态）；JVM 测试注入。 */
-    interface TabV5Playback {
-        Stream.VideoTrack get(String vid, String quality, PlaybackDevice.Identity identity,
-                long started, long budgetMs) throws Exception;
-    }
-
-    private static TabV5Playback tabV5Playback = AppSource::fetchTabV5;
-
-    static void setTabV5PlaybackForTest(TabV5Playback playback) {
-        tabV5Playback = playback == null ? AppSource::fetchTabV5 : playback;
-    }
-
-    private static MobileV5Playback mobileV5Playback = AppSource::fetchMobileV5;
-
-    static void setMobileV5PlaybackForTest(MobileV5Playback playback) {
-        mobileV5Playback = playback == null ? AppSource::fetchMobileV5 : playback;
-    }
-
-    /** 参考实现当前形态的取流（video_tab 签名 GET → 旧 POST gzip 体）；JVM 测试注入。 */
-    interface PlayerSignaturePlayback {
-        Stream.VideoTrack get(String vid, String quality, long started, long budgetMs)
-                throws Exception;
-    }
-
-    private static PlayerSignaturePlayback playerSignaturePlayback = AppSource::fetchWithPlayerSignature;
-
-    static void setPlayerSignaturePlaybackForTest(PlayerSignaturePlayback playback) {
-        playerSignaturePlayback = playback == null ? AppSource::fetchWithPlayerSignature : playback;
-    }
-
-    /**
-     * 可替换的签名请求发送（JVM 测试注入）：v5 与 11-13 两跳的 HTTP 出口。
-     * 生产实现直接 {@link Http#send}；测试用它断言「预算耗尽/取消后不再发请求」。
-     */
-    interface PlaybackHttp {
-        Http.Resp send(Http.Req req) throws IOException;
-    }
-
-    private static PlaybackHttp playbackHttp = Http::sendPlaybackMetadataOnce;
-
-    static void setPlaybackHttpForTest(PlaybackHttp http) {
-        playbackHttp = http == null ? Http::sendPlaybackMetadataOnce : http;
-    }
-
-    /**
-     * 两跳/单集发出签名请求前统一走这里：预算耗尽抛 IOException，线程已取消抛 InterruptedIOException。
-     *
-     * <p>预算只约束「是否开始新的工作」（注册身份、签名、发起下一跳）：请求一旦发出，其成果不会被
-     * 预算丢弃——晚到但成功的响应仍会正常返回给用户（与上游「预算不强行截断已发出的请求」一致）。
-     */
-    private static Http.Resp sendPlaybackRequest(Http.Req req, long started, long budgetMs) throws IOException {
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        try {
-            return playbackHttp.send(req);
-        } finally {
-            checkPlaybackCancellation();
-        }
+        singlePlayback = playback == null ? AppSource::fetchPrimary : playback;
+        useLegacySingle = playback == null;
     }
 
     /** 可替换的 video_tab 请求（JVM 测试注入）；返回 null 表示该接口不可用、应回退旧流程。 */
     interface PlaybackTab {
-        /** @param deadline 本次取流的总截止时刻（nanoTime），GET 重试与超时都不得越过它。 */
         Map<String, Object> get(String vid, PlaybackDevice.Identity identity, long deadline) throws Exception;
     }
 
@@ -531,7 +408,7 @@ public final class AppSource {
 
     /** 可替换的 fallback_api 请求（JVM 测试注入）。 */
     interface PlaybackFallback {
-        Map<String, Object> get(String url) throws Exception;
+        Map<String, Object> get(String url, long deadline) throws Exception;
     }
 
     private static PlaybackFallback playbackFallback = AppSource::getPlain;
@@ -544,7 +421,7 @@ public final class AppSource {
      * 从播放接口响应解析出可播放轨道（包内可见，便于用离线响应做 JVM 测试）。
      * 只取所请求的分集，不借用响应里其他分集的模型。
      */
-    static Stream.VideoTrack parseModel(String vid, Map<String, Object> j, String quality)
+    static Stream.VideoTrack parseModel(String vid, Map<String, Object> j, String quality, long deadline)
             throws Exception {
         checkPlaybackBusinessRejection(j);
         if (Json.optInt(j.get("Code"), 0) != 0 || Json.optInt(j.get("code"), 0) != 0) {
@@ -565,7 +442,7 @@ public final class AppSource {
         boolean inline = inlineList instanceof List && !((List<?>) inlineList).isEmpty()
                 || inlineList instanceof Map && !((Map<?, ?>) inlineList).isEmpty();
         if (!inline) {
-            return fallbackTrack(readFallback(model), parseFallback(model.get("fallback_api")), quality);
+            return fallbackTrack(readFallback(model, deadline), parseFallback(model.get("fallback_api")), quality, deadline);
         }
         try {
             return selectTrack(model, quality, true, 0);
@@ -573,15 +450,15 @@ public final class AppSource {
             // 内联全是 ByteVC2：备用接口及其兼容请求仍可能给出 HEVC。
             String fallback = parseFallback(model.get("fallback_api"));
             if (fallback == null || fallback.isEmpty()) throw onlyByteVc2;
-            Map<String, Object> info = readFallback(fallback);
+            Map<String, Object> info = readFallback(fallback, deadline);
             confirmSameVideo(model, info);
-            return fallbackTrack(info, fallback, quality);
+            return fallbackTrack(info, fallback, quality, deadline);
         } catch (IncompleteEncryption incomplete) {
             // 内联片源既无密钥也未声明加密状态时才尝试备用接口；备用片源须独立通过编号、
             // 完整时长、清晰度与加密信息校验（同步自 hongguo-drama 5.5）。
             try {
-                return verifiedFallback(model, quality, incomplete);
-            } catch (InterruptedIOException e) {
+                return verifiedFallback(model, quality, incomplete, deadline);
+            } catch (InterruptedIOException | PlaybackRejectedException e) {
                 throw e;
             } catch (Exception fallbackFailure) {
                 if (Thread.currentThread().isInterrupted()) throw fallbackFailure;
@@ -601,7 +478,7 @@ public final class AppSource {
 
     /** 内联片源缺加密信息时，使用编号、完整时长与清晰度都对得上的备用片源。 */
     private static Stream.VideoTrack verifiedFallback(Map<String, Object> model, String quality,
-            IncompleteEncryption incomplete) throws Exception {
+            IncompleteEncryption incomplete, long deadline) throws Exception {
         String id = Json.optStr(model.get("video_id"), "").trim();
         double duration = seconds(model.get("video_duration"));
         String fallback = parseFallback(model.get("fallback_api"));
@@ -609,7 +486,7 @@ public final class AppSource {
                 || fallback == null || fallback.isEmpty()) {
             throw incomplete;
         }
-        Map<String, Object> info = readFallback(model);
+        Map<String, Object> info = readFallback(model, deadline);
         double other = seconds(info.get("video_duration"));
         if (!id.equals(Json.optStr(info.get("video_id"), "")) || other <= 0
                 || Math.abs(other - duration) > 0.5) {
@@ -633,7 +510,7 @@ public final class AppSource {
      * 从备用模型选档。全档 ByteVC2 时，在同一地址依次换兼容编码参数再读。参数名不保证编码，
      * 返回结果仍按实际编码过滤，并须与原模型是同一视频、同一时长。
      */
-    private static Stream.VideoTrack fallbackTrack(Map<String, Object> info, String fallback, String quality)
+    private static Stream.VideoTrack fallbackTrack(Map<String, Object> info, String fallback, String quality, long deadline)
             throws Exception {
         try {
             return selectTrack(info, quality, false, 0);
@@ -641,10 +518,10 @@ public final class AppSource {
             if (fallback == null || fallback.isEmpty()) throw onlyByteVc2;
             for (String codecQuery : COMPATIBLE_CODEC_QUERIES) {
                 try {
-                    Map<String, Object> other = readFallback(compatibleFallback(fallback, codecQuery));
+                    Map<String, Object> other = readFallback(compatibleFallback(fallback, codecQuery), deadline);
                     confirmSameVideo(info, other);
                     return selectTrack(other, quality, false, 0);
-                } catch (InterruptedIOException e) {
+                } catch (InterruptedIOException | PlaybackRejectedException e) {
                     throw e;
                 } catch (Exception e) {
                     if (Thread.currentThread().isInterrupted()) throw e;
@@ -683,16 +560,18 @@ public final class AppSource {
     }
 
     /** 请求 fallback_api 并取出其中的片源模型。 */
-    private static Map<String, Object> readFallback(Map<String, Object> model) throws Exception {
-        return readFallback(parseFallback(model.get("fallback_api")));
+    private static Map<String, Object> readFallback(Map<String, Object> model, long deadline) throws Exception {
+        return readFallback(parseFallback(model.get("fallback_api")), deadline);
     }
 
-    private static Map<String, Object> readFallback(String fallback) throws Exception {
+    private static Map<String, Object> readFallback(String fallback, long deadline) throws Exception {
         if (fallback == null || fallback.isEmpty()) {
             throw new IllegalStateException("App 接口未返回本集片源地址");
         }
-        Map<String, Object> outer = playbackFallback.get(checkedUrl(fallback, API_DOMAINS));
+        Map<String, Object> outer = playbackFallback.get(checkedUrl(fallback, API_DOMAINS), deadline);
+        checkPlaybackBusinessRejection(outer);
         Map<String, Object> outerInfo = Json.optObj(outer.get("video_info"));
+        if (outerInfo != null) checkPlaybackBusinessRejection(outerInfo);
         if (Json.optInt(outer.get("Code"), 0) != 0
                 || Json.optInt(outer.get("code"), 0) != 0
                 || Json.optInt(outerInfo == null ? null : outerInfo.get("Code"), 0) != 0) {
@@ -797,22 +676,30 @@ public final class AppSource {
                 keyOk = Spade.isValidKey(Spade.unwrapV1(Crypto.base64Decode(spade), 0));
             }
             if (!keyOk) continue; // spade_a 解不出合法 key 的候选不可用
+            Stream.VideoTrack selected = null;
             for (String candidate : urlCandidates(r.item)) {
                 try {
                     String media = seed != null
                             ? decryptSpadeUrl(candidate, seed) : cleanUrl(candidate);
                     String url = checkedUrl(media, VOD_DOMAINS);
+                    if (selected != null) {
+                        if (URI.create(url).getFragment() == null && !url.equals(selected.url)
+                                && !selected.backupUrls.contains(url)) selected.backupUrls.add(url);
+                        continue;
+                    }
                     Stream.VideoTrack t = new Stream.VideoTrack();
                     t.url = url;
                     t.spadeA = spade;
                     t.encrypt = !spade.isEmpty();
                     t.definition = r.quality.isEmpty() ? "?" : r.quality;
                     t.size = r.size;
-                    return t;
+                    if (seed != null || t.encrypt || !declaredPlain(r.item)) return t;
+                    selected = t;
                 } catch (Exception ex) {
                     last = ex;
                 }
             }
+            if (selected != null) return selected;
         }
         if (incomplete) throw new IncompleteEncryption(ok.get(0).shortSide);
         throw new IllegalStateException("本集片源地址或密钥无法解析");
@@ -899,17 +786,10 @@ public final class AppSource {
     public static final class SignedPlayback {
         public final String url;
         public final Map<String, String> headers;
-        /** POST 的压缩正文；GET 为 null。 */
-        public final byte[] body;
 
         SignedPlayback(String url, Map<String, String> headers) {
-            this(url, headers, null);
-        }
-
-        SignedPlayback(String url, Map<String, String> headers, byte[] body) {
             this.url = url;
             this.headers = headers;
-            this.body = body;
         }
     }
 
@@ -1035,7 +915,62 @@ public final class AppSource {
         return Json.stringify(payload).getBytes(StandardCharsets.UTF_8);
     }
 
-    private static Stream.VideoTrack fetchSingle(String vid, String quality, PlaybackDevice.Identity identity)
+    /**
+     * video_tab 的 v5 无正文 GET 取源：2026-11-20 起 player/v1 的 v5 POST 与旧的签名
+     * video_tab 都只回空正文，这条路径是当前唯一可用的。响应仍为
+     * {@code data.video_model_data[vid].video_model}，复用 {@link #parseTabResponse}。
+     */
+    private static Stream.VideoTrack fetchTabV5(String vid, String quality, PlaybackDevice.Identity identity)
+            throws Exception {
+        com.hongguo.api.playback.MobilePlayerV5.TabRequest signed =
+                com.hongguo.api.playback.MobilePlayerV5.requestVideoTab(
+                        vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.getUrl()).method("GET").timeout(PLAYBACK_TIMEOUT_MS);
+        req.followRedirect = false;
+        for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) {
+            req.header(header.getKey(), header.getValue());
+        }
+        Http.Resp response = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        checkPlaybackCancellation();
+        checkPlaybackResponse(response);
+        if (response.status != 200) throw new PlaybackHttpException(response.status);
+        if (response.body.length == 0) throw new EmptyPlaybackResponseException();
+        if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        Map<String, Object> model = parseTabResponse(vid, response.text());
+        if (model == null) throw new IllegalStateException("video_tab 未返回本集播放模型");
+        return parseModel(vid, model, quality, Long.MAX_VALUE);
+    }
+
+    /** v5 gzip 模型 POST；精确选择本集，沿用 parseModel 的编码与加密规则。 */
+    private static Stream.VideoTrack fetchPrimary(String vid, String quality, PlaybackDevice.Identity identity, long deadline) throws Exception {
+        checkPlaybackCancellation();
+        com.hongguo.api.playback.MobilePlayerV5.Request signed =
+                com.hongguo.api.playback.MobilePlayerV5.request(vid, identity.deviceId, identity.iid, identity.cdid, System.currentTimeMillis());
+        Http.Req req = new Http.Req(signed.getUrl()).method("POST").timeout(PLAYBACK_TIMEOUT_MS);
+        req.followRedirect = false;
+        for (Map.Entry<String, String> header : signed.getHeaders().entrySet()) req.header(header.getKey(), header.getValue());
+        req.body(signed.getBody());
+        Http.Resp response = Http.sendPlaybackMetadata(req, deadline);
+        checkPlaybackCancellation();
+        checkPlaybackResponse(response);
+        if (response.status != 200) throw new PlaybackHttpException(response.status);
+        if (response.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
+        return parseModel(vid, parseMobileResponse(vid, response.text()), quality, deadline);
+    }
+
+    static Map<String, Object> parseMobileResponse(String vid, String text) {
+        Map<String, Object> root = parsePlaybackResponse(text);
+        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
+        if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("播放接口暂未提供播放信息");
+        Map<String, Object> data = Json.optObj(root.get("data"));
+        Map<String, Object> nested = data == null ? null : Json.optObj(data.get("1004"));
+        Map<String, Object> entries = nested == null ? data : nested;
+        if (entries == null || !entries.containsKey(vid)) throw new IllegalStateException("当前分集未返回播放信息");
+        Map<String, Object> result = Json.obj(); result.put("code", 0L); result.put("data", entries);
+        return result;
+    }
+
+    private static Stream.VideoTrack fetchSingle(String vid, String quality, PlaybackDevice.Identity identity, long deadline)
             throws Exception {
         byte[] body = singleBody(vid);
         long now = System.currentTimeMillis();
@@ -1052,10 +987,10 @@ public final class AppSource {
             req.header(e.getKey(), e.getValue());
         }
         req.body(body);
-        Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        Http.Resp res = Http.sendPlaybackMetadata(req, deadline);
         checkPlaybackResponse(res);
         if (res.status != 200) throw new PlaybackHttpException(res.status);
-        return parseModel(vid, parseSingleResponse(vid, res.text()), quality);
+        return parseModel(vid, parseSingleResponse(vid, res.text()), quality, deadline);
     }
 
     /** 单集接口把模型放在 {@code data.video_model}（对象、JSON 字符串或 Base64）；整理成 parseModel 的形态。 */
@@ -1104,20 +1039,14 @@ public final class AppSource {
         return q;
     }
 
-    /** 单次签名 GET video_tab；空响应、网络、HTTP 或结构问题一律返回 null，由 fetch 换下一条路径。 */
+    /** 兼容 GET 在原请求和整次取流的时限内处理短暂连接故障。 */
     private static Map<String, Object> getTabModel(String vid, PlaybackDevice.Identity identity, long deadline)
             throws Exception {
         SignedPlayback signed = signPlayback(TAB_API, identity, tabQuery(vid), null, System.currentTimeMillis());
         Http.Req req = new Http.Req(signed.url).method("GET").timeout(PLAYBACK_TIMEOUT_MS);
         req.followRedirect = false;
         for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
-        Http.Resp res;
-        try {
-            res = Http.sendPlaybackMetadata(req, deadline);
-        } catch (IOException e) {
-            if (Thread.currentThread().isInterrupted()) throw e;
-            return null;
-        }
+        Http.Resp res = Http.sendPlaybackMetadata(req, deadline);
         checkPlaybackResponse(res);
         return res.status == 200 ? parseTabResponse(vid, res.text()) : null;
     }
@@ -1151,413 +1080,20 @@ public final class AppSource {
 
     /** 单次签名 POST。 */
     private static Map<String, Object> postPlayback(byte[] body, PlaybackDevice.Identity identity,
-            String host) throws Exception {
+            String host, long deadline) throws Exception {
         SignedPlayback signed = signPlayback(VIDEO_API.replace(VIDEO_API_HOST, host), identity,
                 new LinkedHashMap<>(), body, System.currentTimeMillis());
         Http.Req req = new Http.Req(signed.url).method("POST").timeout(PLAYBACK_TIMEOUT_MS);
         req.followRedirect = false;
         for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
         req.body(body);
-        Http.Resp res = Http.sendPlaybackMetadata(req, Long.MAX_VALUE);
+        Http.Resp res = Http.sendPlaybackMetadata(req, deadline);
         checkPlaybackResponse(res);
         if (res.status != 200) throw new PlaybackHttpException(res.status);
         return parsePlaybackResponse(res.text());
     }
 
-    // ==================== v5 播放形态（2026-11-16，移植自 N3urda/hongguoTV 18c37c2） ====================
-
-    /**
-     * v5 播放端点。2026-11-20 抓包实证：{@code multi_video_model/player/v1} 返回 200+空 body，
- * 有效端点是无 {@code /player/} 层的 {@code multi_video_model/v1/}（第三方客户端正在用且正常返回）。
-     *
-     * <p>上游 {@code MobilePlayback.ladder} 用的就是这一条；query 只有 13 个字段（不再带 ts、不再带
-     * 全套 deviceBase），因为 v5 的票号选择靠 {@code _rticket} 抖动而不是 {@code ts}。
-     */
-    static final String MOBILE_V5_API =
-            "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/v1/";
-
-    /** v5 的播放器版本（上游 74332 / 7.4.3.32）。 */
-    private static final String MOBILE_V5_VERSION_CODE = "74332";
-    private static final String MOBILE_V5_VERSION_NAME = "7.4.3.32";
-
-    /** v5 播放器 UA（上游 MobilePlayback 的字面量，与 v3 的 PLAYBACK_UA 不同）。 */
-    static final String MOBILE_V5_UA =
-            "com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; "
-            + "Build/V417IR;tt-ok/3.12.13.20)";
-
-    /**
-     * 2026-11-20 起的唯一可用取源形态：video_tab 的 v5 无正文 GET。
-     * player/v1 的 v5 POST 与旧 Argus/Ladon 签名的 video_tab 都只回 200+空正文。
-     */
-    static final String TAB_V5_API = "https://api5-normal-sinfonlineb.fqnovel.com"
-            + "/reading/bookapi/video_tab/multi_video_model/v1/";
-    private static final String TAB_V5_UA = "com.phoenix.read/73932 (Linux; U; Android 16; zh_CN; "
-            + "25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 "
-            + "QuicVersion:c67e9834 2025-09-08)";
-
-    /** v5 的 13 个 query 字段，顺序照抄上游 {@code linkedMapOf}（query 按插入序编码）。 */
-    static Map<String, String> mobileV5Query(PlaybackDevice.Identity identity, long ticket) {
-        Map<String, String> q = new LinkedHashMap<>();
-        q.put("aid", "8662");
-        q.put("app_name", "novelread");
-        q.put("version_code", MOBILE_V5_VERSION_CODE);
-        q.put("version_name", MOBILE_V5_VERSION_NAME);
-        q.put("channel", "vivo_8662_64");
-        q.put("device_platform", "android");
-        q.put("device_type", "PGT-AN10");
-        q.put("os_version", "12");
-        q.put("update_version_code", MOBILE_V5_VERSION_CODE);
-        q.put("iid", identity.iid);
-        q.put("cdid", identity.cdid);
-        q.put("device_id", identity.deviceId);
-        q.put("_rticket", String.valueOf(ticket));
-        return q;
-    }
-
-    /** v5 请求体（上游 payload 的逐字段复制；{@code dr_scene} 必须在末尾）。 */
-    static byte[] mobileV5Body(String vid) {
-        Map<String, Object> biz = Json.obj();
-        biz.put("detail_page_version", 0);
-        // 上游 0.7.30 v5（N3urda 6672b55, issue 61）明确用 1：level=3 会让部分分集
-        // 只下发无法解码的 bytevc2 档位；升级前我方 v5 这里是 3，与上游不一致。
-        biz.put("device_level", 1);
-        biz.put("disable_digg_stat", false);
-        biz.put("disable_video_relate_book", false);
-        biz.put("need_all_video_definition", true);
-        biz.put("need_mp4_align", false);
-        biz.put("use_os_player", false);
-        biz.put("use_server_dns", false);
-        biz.put("video_platform", 1024);
-        Map<String, Object> mixed = Json.obj();
-        List<Object> ids = Json.arr();
-        ids.add(vid);
-        mixed.put("1004", ids);
-        Map<String, Object> out = Json.obj();
-        out.put("biz_param", biz);
-        out.put("mixed_video_id_map", mixed);
-        out.put("dr_scene", "player");
-        return Json.stringify(out).getBytes(StandardCharsets.UTF_8);
-    }
-
-    /** v5 的注册身份画像（processNonce / processStarted 是进程级常量）。 */
-    private static V5Sign.Identity mobileV5Identity(PlaybackDevice.Identity identity) {
-        return new V5Sign.Identity(identity.deviceId, MOBILE_V5_VERSION_NAME, "vivo_8662_64",
-                "12", "PGT-AN10", V5Sign.processNonce(), V5Sign.processStarted());
-    }
-
-    /**
-     * v5 一跳：注册身份 → gzip 体 → v5 签名（票号在 1024 内搜到分支 0）→ POST。
-     *
-     * <p>空正文按 {@link EmptyPlaybackResponseException} 上抛（与旧路径同类，{@code fetch} 会继续下一跳）；
-     * 非 200 按 {@link PlaybackHttpException}。响应同时支持 flat（{@code data[vid]}）与
-     * {@code data.1004[vid]} 两种形态，模型交给 {@link #parseModel}。
-     */
-    static Stream.VideoTrack fetchMobileV5(String vid, String quality, PlaybackDevice.Identity identity)
-            throws Exception {
-        return fetchMobileV5(vid, quality, identity, System.nanoTime(), PLAYBACK_BUDGET_MS);
-    }
-
-    /**
-     * video_tab 的 v5 无正文 GET 取源。2026-11-20 起 player/v1 的 v5 POST 与旧签名 video_tab
-     * 都只回 200+空正文，这条是当前唯一可用的路径。响应为
-     * {@code data.video_model_data[vid].video_model}，复用 {@link #parseTabResponse}。
-     */
-    static Stream.VideoTrack fetchTabV5(String vid, String quality, PlaybackDevice.Identity identity,
-            long started, long budgetMs) throws Exception {
-        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        long nowMs = System.currentTimeMillis();
-        long ts = nowMs / 1000L;
-        Map<String, String> values = V5Sign.videoTabQuery(vid, identity.deviceId, identity.iid, identity.cdid);
-        V5Sign.Signed signed = V5Sign.signPlaybackGet(TAB_V5_API, values, mobileV5Identity(identity),
-                ts, nowMs, null);
-        Http.Req req = new Http.Req(signed.url).method("GET").timeout(PLAYBACK_TIMEOUT_MS);
-        req.followRedirect = false;
-        // video_tab 属 player 签名族：只有三个 Armor 头 + UA/Accept，不带 Content-* 与 x-ss-stub。
-        req.header("User-Agent", TAB_V5_UA);
-        req.header("Accept", "application/json");
-        for (Map.Entry<String, String> e : signed.headers.entrySet()) req.header(e.getKey(), e.getValue());
-        Http.Resp res = sendPlaybackRequest(req, started, budgetMs);
-        checkPlaybackResponse(res);
-        if (res.status != 200) throw new PlaybackHttpException(res.status);
-        if (res.body == null || res.body.length == 0) throw new EmptyPlaybackResponseException();
-        if (res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
-        Map<String, Object> model = parseTabResponse(vid, res.text());
-        if (model == null) throw new IllegalStateException("video_tab 未返回本集播放模型");
-        return parseModel(vid, model, quality);
-    }
-
-    static Stream.VideoTrack fetchMobileV5(String vid, String quality, PlaybackDevice.Identity identity,
-            long started, long budgetMs) throws Exception {
-        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        // 签名必须绑定「实际发出的字节」：先 gzip 一次，签名与 req.body 用同一份。
-        byte[] body = gzip(mobileV5Body(vid));
-        long nowMs = System.currentTimeMillis();
-        long ts = nowMs / 1000L;
-        V5Sign.Signed signed = V5Sign.signPlayback(MOBILE_V5_API, mobileV5Query(identity, nowMs),
-                body, mobileV5Identity(identity), ts, nowMs, null);
-        Http.Req req = new Http.Req(signed.url).method("POST").timeout(PLAYBACK_TIMEOUT_MS);
-        req.followRedirect = false;
-        req.header("User-Agent", MOBILE_V5_UA);
-        req.header("Accept", "application/json");
-        req.header("Content-Type", "application/json; charset=utf-8");
-        req.header("Content-Encoding", "gzip");
-        // 官方形态：x-ss-stub 是 gzip 后字节的大写 MD5（在签名之外单独放）。
-        req.header("x-ss-stub", Crypto.md5HexUpper(body));
-        for (Map.Entry<String, String> e : signed.headers.entrySet()) {
-            req.header(e.getKey(), e.getValue());
-        }
-        req.body(body);
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        Http.Resp res = sendPlaybackRequest(req, started, budgetMs);
-        checkPlaybackResponse(res); // 403/429 拒绝 + Retry-After(503/200空) 退避，统一判定
-        if (res.body != null && res.body.length > 2 * 1024 * 1024) throw new IOException("播放信息过大");
-        if (res.status != 200) throw new PlaybackHttpException(res.status);
-        if (res.body == null || res.body.length == 0 || res.text().trim().isEmpty()) {
-            throw new EmptyPlaybackResponseException();
-        }
-        return parseModel(vid, parseMobileV5Response(vid, res.text()), quality);
-    }
-
-    /**
-     * 把 v5 播放响应整理成 {@link #parseModel} 认识的 {@code {code:0, data:{vid:{video_model}}}}。
-     *
-     * <p>上游 {@code MobilePlayback.ladder}：{@code data = root.data}，{@code entries = data["1004"] ?? data}，
-     * 模型取 {@code entries[vid].video_model}（对象或 JSON 字符串）。只取精确分集号，绝不借用
-     * 同批响应里其他分集的模型。
-     */
-    static Map<String, Object> parseMobileV5Response(String vid, String text) {
-        if (vid == null || !vid.matches("\\d{1,30}")) throw new IllegalArgumentException("分集编号无效");
-        Map<String, Object> root = parsePlaybackResponse(text);
-        // 上游 MobilePlayback.ladder 先 PlaybackModels.checkStatus(root)：非 0 code 直接判为上游拒绝，
-        // 不能当成「本集没有片源」，否则回退链会误以为换身份就能解决。
-        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
-        if (code != null && Json.optInt(code, 0) != 0) {
-            throw new IllegalStateException("播放接口拒绝请求（错误码 " + Json.optStr(code, "") + "）");
-        }
-        Map<String, Object> data = Json.optObj(root.get("data"));
-        if (data == null) throw new IllegalStateException("App 接口未返回播放数据");
-        Map<String, Object> entries = Json.optObj(data.get("1004"));
-        if (entries == null || entries.isEmpty()) entries = data;
-        Map<String, Object> row = Json.optObj(entries.get(vid));
-        if (row == null || row.isEmpty()) throw new IllegalStateException("App 接口未返回所选分集");
-        Map<String, Object> model = asObject(row.get("video_model"));
-        if (model.isEmpty()) throw new IllegalStateException("App 接口未返回 video_model");
-        Map<String, Object> entry = Json.obj();
-        entry.put("video_model", model);
-        Map<String, Object> episodes = Json.obj();
-        episodes.put(vid, entry);
-        Map<String, Object> out = Json.obj();
-        out.put("code", 0L);
-        out.put("data", episodes);
-        return out;
-    }
-
-    /** 区分空响应（疑似设备身份被拒）与其他无效响应。空响应不值得用同一身份重试。 */
-    // ==================== 参考实现形态的播放请求（2026-11-13 同步） ====================
-
-    private static final String PLAYBACK_TAB_VERSION_CODE = "73932";
-    private static final String PLAYBACK_TAB_VERSION_NAME = "7.3.9.32";
-    private static final String PLAYBACK_POST_VERSION_CODE = "74332";
-    private static final String PLAYBACK_POST_VERSION_NAME = "7.4.3.32";
-    static final String TAB_PLAYBACK_API = "https://" + VIDEO_API_HOST + "/reading/bookapi/video_tab/multi_video_model/v1/";
-
-    /** 两跳：video_tab 签名 GET → 旧 POST（gzip 体，换新身份）。都空才抛空响应交给旧路径。 */
-    static Stream.VideoTrack fetchWithPlayerSignature(String vid, String quality) throws Exception {
-        return fetchWithPlayerSignature(vid, quality, System.nanoTime(), PLAYBACK_BUDGET_MS);
-    }
-
-    static Stream.VideoTrack fetchWithPlayerSignature(String vid, String quality, long started, long budgetMs)
-            throws Exception {
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        {
-            checkPlaybackCancellation();
-            if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-            PlaybackDevice.Identity identity = PlaybackDevice.fresh();
-            checkPlaybackCancellation();
-            if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-            SignedPlayback tab = tabSignatureRequest(identity, vid, System.currentTimeMillis());
-            Http.Resp res = sendSigned(tab.url, tab.headers, null, "GET", started, budgetMs);
-            // 403/429 拒绝 + Retry-After 退避：不换新身份重打 POST，直接终止整条链。
-            checkPlaybackResponse(res);
-            if (res.status == 200 && res.body != null && res.body.length > 0 && !res.text().trim().isEmpty()) {
-                checkPlaybackCancellation();
-                Stream.VideoTrack track = parseModel(vid, wrapTabModel(vid, res.text()), quality);
-                PLAYBACK_IDENTITY.compareAndSet(null, identity);
-                return track;
-            }
-        }
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        {
-            checkPlaybackCancellation();
-            if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-            PlaybackDevice.Identity identity = PlaybackDevice.fresh();
-            checkPlaybackCancellation();
-            if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-            SignedPlayback post = postSignatureRequest(identity, vid, System.currentTimeMillis());
-            Http.Resp res = sendSigned(post.url, post.headers, post.body, "POST", started, budgetMs);
-            checkPlaybackResponse(res);
-            if (res.status != 200) throw new PlaybackHttpException(res.status);
-            if (res.body == null || res.body.length == 0) throw new EmptyPlaybackResponseException();
-            checkPlaybackCancellation();
-            Stream.VideoTrack track = parseModel(vid, parsePlaybackResponse(res.text()), quality);
-            PLAYBACK_IDENTITY.compareAndSet(null, identity);
-            return track;
-        }
-    }
-
-    private static Http.Resp sendSigned(String url, Map<String, String> headers, byte[] body, String method,
-            long started, long budgetMs) throws Exception {
-        checkPlaybackCancellation();
-        if (!hasPlaybackTime(started, budgetMs)) throw new IOException("播放取流超时，请稍后重试");
-        Http.Req req = new Http.Req(url).method(method).timeout(PLAYBACK_TIMEOUT_MS);
-        req.followRedirect = false;
-        for (Map.Entry<String, String> e : headers.entrySet()) req.header(e.getKey(), e.getValue());
-        if (body != null) req.body(body);
-        return sendPlaybackRequest(req, started, budgetMs);
-    }
-
-    /** video_tab 签名 GET：73932 / 7.3.9.32，业务参数在设备字段之后、ts/_rticket 之前。 */
-    static SignedPlayback tabSignatureRequest(PlaybackDevice.Identity identity, String vid, long nowMs) {
-        Map<String, String> device = playbackDevice(PLAYBACK_TAB_VERSION_CODE, PLAYBACK_TAB_VERSION_NAME);
-        Map<String, String> values = new LinkedHashMap<>(tabQuery(vid));
-        String query = playbackQuery(device, identity, values, nowMs);
-        String url = TAB_PLAYBACK_API + "?" + query;
-        return new SignedPlayback(url, playbackHeaders(PLAYBACK_TAB_VERSION_CODE, query, null, nowMs, true));
-    }
-
-    /** 旧 POST 签名请求：gzip 正文 + Content-Encoding，74332 / 7.4.3.32。 */
-    static SignedPlayback postSignatureRequest(PlaybackDevice.Identity identity, String vid, long nowMs) throws Exception {
-        Map<String, String> device = playbackDevice(PLAYBACK_POST_VERSION_CODE, PLAYBACK_POST_VERSION_NAME);
-        String query = playbackQuery(device, identity, new LinkedHashMap<>(), nowMs);
-        byte[] body = gzip(legacyPlaybackBody(vid));
-        String url = VIDEO_API.replace(VIDEO_API_HOST, VIDEO_API_HOST) + "?" + query;
-        return new SignedPlayback(url, playbackHeaders(PLAYBACK_POST_VERSION_CODE, query, body, nowMs, false), body);
-    }
-
-    /** 参考实现 payload(vid)：biz_param + mixed_video_id_map。 */
-    static byte[] legacyPlaybackBody(String vid) {
-        Map<String, Object> biz = Json.obj();
-        biz.put("detail_page_version", 0);
-        biz.put("device_level", 3);
-        biz.put("disable_digg_stat", false);
-        biz.put("need_all_video_definition", true);
-        biz.put("need_mp4_align", false);
-        biz.put("use_os_player", false);
-        biz.put("use_server_dns", false);
-        biz.put("video_platform", 1024);
-        Map<String, Object> mixed = Json.obj();
-        List<Object> mixedIds = Json.arr();
-        mixedIds.add(vid);
-        mixed.put("1004", mixedIds);
-        Map<String, Object> out = Json.obj();
-        out.put("biz_param", biz);
-        out.put("mixed_video_id_map", mixed);
-        return Json.stringify(out).getBytes(StandardCharsets.UTF_8);
-    }
-
-    static byte[] gzip(byte[] data) throws IOException {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        try (java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(out)) {
-            gz.write(data);
-        }
-        return out.toByteArray();
-    }
-
-    /** 设备参数按参考实现的插入序（deviceBase 顺序一致），版本字段统一改写。 */
-    static Map<String, String> playbackDevice(String versionCode, String versionName) {
-        Map<String, String> device = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> e : deviceBase().entrySet()) device.put(e.getKey(), String.valueOf(e.getValue()));
-        for (String name : new String[]{"version_code", "manifest_version_code", "update_version_code", "pv_player"}) {
-            device.put(name, versionCode);
-        }
-        device.put("version_name", versionName);
-        return device;
-    }
-
-    /** 身份 + 业务参数 + ts/_rticket；query 按插入序编码（星号不转）。 */
-    static String playbackQuery(Map<String, String> device, PlaybackDevice.Identity identity,
-                                Map<String, String> values, long nowMs) {
-        Map<String, String> q = new LinkedHashMap<>(device);
-        q.put("device_id", identity.deviceId);
-        q.put("iid", identity.iid);
-        q.put("cdid", identity.cdid);
-        q.putAll(values);
-        q.put("ts", String.valueOf(nowMs / 1000L));
-        q.put("_rticket", String.valueOf(nowMs));
-        StringBuilder out = new StringBuilder();
-        for (Map.Entry<String, String> e : q.entrySet()) {
-            if (out.length() > 0) out.append('&');
-            out.append(encodePython(e.getKey())).append('=').append(encodePython(e.getValue()));
-        }
-        return out.toString();
-    }
-
-    /** encodeURIComponent 后补转 !'()，星号保持原样（参考实现的编码规则）。 */
-    static String encodePython(String raw) {
-        StringBuilder out = new StringBuilder();
-        for (byte b : raw.getBytes(StandardCharsets.UTF_8)) {
-            int c = b & 0xFF;
-            boolean keep = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
-                    || c == '-' || c == '_' || c == '.' || c == '~' || c == '*';
-            if (keep) out.append((char) c);
-            else out.append('%').append(String.format("%02X", c));
-        }
-        return out.toString();
-    }
-
-    /** 参考实现的请求头集合：两跳共用，GET 带 x-tt-request-tag，POST 带 gzip 声明。 */
-    static Map<String, String> playbackHeaders(String versionCode, String query, byte[] body, long nowMs, boolean tab) {
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("User-Agent", VIDEO_UA.replace("71332", versionCode));
-        headers.put("Accept", "application/json; charset=utf-8,application/x-protobuf");
-        headers.put("sdk-version", "2");
-        headers.put("x-xs-from-web", "0");
-        headers.put("passport-sdk-version", tab ? "50561" : "5051452");
-        headers.put("x-ss-dp", "8662");
-        headers.putAll(PlaybackSignature.headers(query, body, nowMs / 1000L));
-        headers.put("x-tt-dt", "");
-        headers.put("x-tt-store-region", "cn");
-        headers.put("x-tt-store-region-src", "did");
-        if (tab) {
-            headers.put("x-tt-request-tag", "t=0;n=0");
-        } else {
-            headers.put("Content-Type", "application/json; charset=UTF-8");
-            headers.put("Content-Encoding", "gzip");
-        }
-        return headers;
-    }
-
-    /** video_tab 响应的模型嵌在 data.video_model_data[vid] 下；整理成 parseModel 认识的形态。 */
-    static Map<String, Object> wrapTabModel(String vid, String text) {
-        Map<String, Object> root = parsePlaybackResponse(text);
-        Object code = root.containsKey("code") ? root.get("code") : root.get("Code");
-        if (code == null || Json.optInt(code, -1) != 0) throw new IllegalStateException("video_tab 未提供播放信息");
-        Map<String, Object> data = Json.optObj(root.get("data"));
-        Map<String, Object> entry = null;
-        Map<String, Object> tabData = data == null ? null : Json.optObj(data.get("video_model_data"));
-        if (tabData != null) entry = Json.optObj(tabData.get(vid));
-        if (entry == null || entry.isEmpty()) {
-            entry = data == null ? null : Json.optObj(data.get(vid));
-        }
-        Map<String, Object> model = entry == null ? null : asObject(entry.get("video_model"));
-        if (model == null || model.isEmpty()) throw new IllegalStateException("video_tab 未返回播放模型");
-        Map<String, Object> wrapped = Json.obj();
-        Map<String, Object> row = Json.obj();
-        row.put("video_model", model);
-        Map<String, Object> episodes = Json.obj();
-        episodes.put(vid, row);
-        wrapped.put("code", 0L);
-        wrapped.put("data", episodes);
-        return wrapped;
-    }
-
+    /** 区分可短暂重试的空正文、业务拒绝和格式错误。 */
     static Map<String, Object> parsePlaybackResponse(String text) {
         if (text == null || text.trim().isEmpty()) {
             throw new EmptyPlaybackResponseException();
@@ -1574,10 +1110,11 @@ public final class AppSource {
     }
 
     /** fallback_api 的普通 GET：不带签名，只带 UA（与原实现一致）。 */
-    private static Map<String, Object> getPlain(String url) throws Exception {
+    private static Map<String, Object> getPlain(String url, long deadline) throws Exception {
         Http.Req req = new Http.Req(url).method("GET").timeout(15000);
         req.header("User-Agent", VIDEO_UA);
-        Http.Resp res = Http.send(req);
+        Http.Resp res = Http.sendPlaybackMetadataOnce(req, deadline);
+        checkPlaybackResponse(res);
         if (res.status != 200) {
             throw new IllegalStateException("fallback HTTP " + res.status);
         }
