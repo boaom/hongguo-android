@@ -4,6 +4,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -57,6 +58,7 @@ import com.hongguo.account.AccountViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         applyThemeWindow(storedThemePalette())
         setContent {
@@ -70,8 +72,7 @@ class MainActivity : ComponentActivity() {
             val feedDark = layout == AppThemeStyle.IMMERSIVE && state.tab == AppTab.HOME && state.selectedCard == null
             // A detail page's picture sits behind the status bar, so its icons stay light until the picture scrolls away.
             var detailPictureUnderBar by remember(state.selectedCard?.id) { mutableStateOf(true) }
-            val statusBarOverPicture = state.selectedCard != null && layout != AppThemeStyle.WARM &&
-                layout != AppThemeStyle.PLAYBILL && layout != AppThemeStyle.GAZETTE && layout != AppThemeStyle.RAIL && detailPictureUnderBar
+            val statusBarOverPicture = state.selectedCard != null && layout.detailPictureUnderStatusBar && detailPictureUnderBar
             // The player owns the system bars while open; the theme re-applies them when it closes.
             HongguoTheme(layout, dark = dark, windowDark = dark || feedDark, statusBarOverPicture = statusBarOverPicture, applyToWindow = !state.playerOpen) {
                 CompositionLocalProvider(LocalDetailPictureUnderBar provides { detailPictureUnderBar = it }) {
@@ -255,8 +256,7 @@ class MainActivity : ComponentActivity() {
 
 /**
  * The saved theme, read before composition so the window and system bars match it from the first Compose frame.
- * The system's starting window (themes.xml) is drawn earlier and stays light; a dark splash would need a
- * separate starting theme.
+ * The branded splash has light/dark resources; the saved palette is applied before the first Compose frame.
  */
 private fun ComponentActivity.storedThemePalette(): HongguoPalette {
     val preferences = getSharedPreferences(ThemePreferences.FILE, android.content.Context.MODE_PRIVATE)
@@ -300,15 +300,10 @@ private fun AnimatedContentTransitionScope<String>.pageTransition(from: String, 
 }
 
 /** Pages whose own picture fills the area behind the status bar (they pad their top controls themselves). */
-private fun drawsUnderStatusBar(key: String, layout: AppThemeStyle): Boolean = when (layout) {
-    AppThemeStyle.IMMERSIVE -> key == "tab_${AppTab.HOME.name}" || key.startsWith("detail_")
-    AppThemeStyle.CARDS -> key.startsWith("detail_")
-    // 暖白精修's detail page has no picture at the top: its header already runs on into the status bar's color.
-    // 红果场刊 is a paper sheet: it pads below the status bar like every other page. 红果小报 likewise.
-    // 集刻度's detail page opens on its poster too, so the picture runs under the bar.
-    AppThemeStyle.RAIL -> key.startsWith("detail_")
-    AppThemeStyle.PLAYBILL, AppThemeStyle.GAZETTE, AppThemeStyle.WARM -> false
-}
+private fun drawsUnderStatusBar(key: String, layout: AppThemeStyle): Boolean =
+    (key.startsWith("detail_") && layout.detailPictureUnderStatusBar) ||
+        // 沉浸暗场's video feed fills the whole screen.
+        (layout == AppThemeStyle.IMMERSIVE && key == "tab_${AppTab.HOME.name}")
 
 /** False while a page is animating out, so its back handlers and taps stand down. */
 internal val LocalPageActive = compositionLocalOf { true }

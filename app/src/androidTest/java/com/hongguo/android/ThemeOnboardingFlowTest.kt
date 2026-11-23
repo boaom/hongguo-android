@@ -1,6 +1,7 @@
 package com.hongguo.android
 
 import android.content.SharedPreferences
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -49,7 +50,7 @@ class ThemeOnboardingFlowTest {
 
     private fun awaitPicker() = compose.waitUntil(5_000) {
         compose.onAllNodes(hasTestTag("theme_onboarding")).fetchSemanticsNodes().isNotEmpty()
-    }
+    }.also { compose.onNodeWithTag("theme_onboarding_confirm").assertIsDisplayed() }
 
     private fun model(scenario: ActivityScenario<MainActivity>): HongguoViewModel {
         lateinit var model: HongguoViewModel
@@ -62,12 +63,12 @@ class ThemeOnboardingFlowTest {
             awaitPicker()
             compose.onNodeWithTag("theme_option_warm").assertIsSelected()
             // Previewing does not save anything yet.
-            compose.onNodeWithTag("theme_option_immersive").performClick()
+            compose.onNodeWithTag("theme_option_immersive").performScrollTo().performClick()
             compose.onNodeWithTag("theme_option_immersive").assertIsSelected()
             assertEquals(AppThemeStyle.WARM, model(scenario).state.value.themeStyle)
             assertFalse(preferences.getBoolean(ThemePreferences.ONBOARDING_DONE, true))
 
-            compose.onNodeWithTag("theme_onboarding_confirm").performScrollTo().performClick()
+            compose.onNodeWithTag("theme_onboarding_confirm").performClick()
             compose.onNodeWithTag("theme_onboarding").assertDoesNotExist()
             compose.waitUntil(5_000) {
                 compose.onAllNodes(hasText(themeAppliedMessage(AppThemeStyle.IMMERSIVE, chosen = true)))
@@ -91,7 +92,7 @@ class ThemeOnboardingFlowTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             awaitPicker()
             compose.onNodeWithTag("theme_option_cards").assertIsSelected()
-            compose.onNodeWithTag("theme_onboarding_confirm").performScrollTo().performClick()
+            compose.onNodeWithTag("theme_onboarding_confirm").performClick()
             compose.onNodeWithTag("theme_onboarding").assertDoesNotExist()
             assertEquals(ThemePreferences.CURRENT_ONBOARDING_VERSION, preferences.getInt(ThemePreferences.ONBOARDING_VERSION, 0))
         }
@@ -104,7 +105,7 @@ class ThemeOnboardingFlowTest {
     @Test fun backPressKeepsTheDefaultAndStillPointsToSettings() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             awaitPicker()
-            compose.onNodeWithTag("theme_option_cards").performClick()
+            compose.onNodeWithTag("theme_option_cards").performScrollTo().performClick()
             pressBack()
             compose.onNodeWithTag("theme_onboarding").assertDoesNotExist()
             compose.waitUntil(5_000) {

@@ -130,7 +130,7 @@ internal val WarmPalette = HongguoPalette(
     accentText = Color(0xFFB84428), accentBorder = Color(0xFFE6B6A5), softAccent = Color(0xFFFFEADF),
     ink = Color(0xFF292421), muted = Color(0xFF6B625C),
     canvas = Color(0xFFFCF8F4), cream = Color(0xFFF5EDE5), line = Color(0xFFE5DCD5), card = Color.White,
-    navMuted = Color(0xFF827970), navDivider = Color(0xFFEAE3DD),
+    navMuted = Color(0xFF6B625C), navDivider = Color(0xFFEAE3DD),
     noticeBackground = Color(0xFFFFEFE7), noticeText = Color(0xFF96492F),
 )
 
@@ -212,7 +212,7 @@ internal val GazettePalette = HongguoPalette(
     accentText = Color(0xFFA93A20), accentBorder = Color(0xFFE0B9AC), softAccent = Color(0xFFF7EDE0),
     ink = Color(0xFF1E1B17), muted = Color(0xFF6E6355),
     canvas = Color(0xFFF6F1E7), cream = Color(0xFFEFE8D8), line = Color(0xFFE2D8C8), card = Color(0xFFFFFDF6),
-    navMuted = Color(0xFF7A705F), navDivider = Color(0xFFE7DFD2),
+    navMuted = Color(0xFF6E6355), navDivider = Color(0xFFE7DFD2),
     noticeBackground = Color(0xFFF7EEE2), noticeText = Color(0xFF8A4A2E),
 )
 
@@ -276,6 +276,26 @@ internal val NavMuted: Color @Composable @ReadOnlyComposable get() = LocalHonggu
 internal val NavDivider: Color @Composable @ReadOnlyComposable get() = LocalHongguoPalette.current.navDivider
 internal val NoticeBackground: Color @Composable @ReadOnlyComposable get() = LocalHongguoPalette.current.noticeBackground
 internal val NoticeText: Color @Composable @ReadOnlyComposable get() = LocalHongguoPalette.current.noticeText
+
+/**
+ * Classic and glass navigation share the same selection language for every layout. Red-accent layouts switch to the
+ * lighter [HongguoPalette.accentText] on dark: the brand red is under 4.5:1 on a near-black bar.
+ */
+internal fun HongguoPalette.navigationActiveColor(style: AppThemeStyle): Color = when (style) {
+    AppThemeStyle.RAIL, AppThemeStyle.WARM -> if (isDark) accentText else accent
+    AppThemeStyle.IMMERSIVE, AppThemeStyle.CARDS, AppThemeStyle.PLAYBILL, AppThemeStyle.GAZETTE -> ink
+}
+
+/**
+ * Whether this layout's detail page opens on a picture that runs under the status bar. The page then pads its own
+ * top controls, and the status-bar icons stay light until the picture scrolls away. Exhaustive on purpose, so a new
+ * layout has to decide.
+ */
+internal val AppThemeStyle.detailPictureUnderStatusBar: Boolean get() = when (this) {
+    AppThemeStyle.IMMERSIVE, AppThemeStyle.CARDS -> true
+    // 暖白精修's header runs on into the status bar's color; 场刊 and 小报 are paper sheets; 集刻度 opens on a title row.
+    AppThemeStyle.WARM, AppThemeStyle.PLAYBILL, AppThemeStyle.GAZETTE, AppThemeStyle.RAIL -> false
+}
 
 private val LightNavigationScrim = android.graphics.Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
 private val DarkNavigationScrim = android.graphics.Color.argb(0x80, 0x1b, 0x1b, 0x1b)
@@ -344,9 +364,9 @@ private fun HongguoPalette.colorScheme(): ColorScheme = if (isDark) darkColorSch
     surfaceTint = Color.Transparent,
 ) else lightColorScheme(
     primary = accent, onPrimary = onAccent,
-    primaryContainer = softAccent, onPrimaryContainer = accent,
+    primaryContainer = softAccent, onPrimaryContainer = accentText,
     secondary = accent, onSecondary = onAccent,
-    secondaryContainer = softAccent, onSecondaryContainer = accent,
+    secondaryContainer = softAccent, onSecondaryContainer = accentText,
     background = canvas, onBackground = ink,
     surface = canvas, onSurface = ink, onSurfaceVariant = muted,
     surfaceVariant = cream, outline = line, outlineVariant = line,

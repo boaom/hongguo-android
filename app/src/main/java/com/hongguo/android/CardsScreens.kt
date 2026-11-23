@@ -405,6 +405,9 @@ internal fun CardsDetail(state: HongguoUiState, model: HongguoViewModel, account
                     Box(Modifier.fillMaxWidth().height(170.dp + statusTop)) {
                         PosterImage(detail?.cover ?: card.cover, Modifier.fillMaxSize())
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .35f)))
+                        // The clock and back button stay readable even on a nearly white cover.
+                        Box(Modifier.fillMaxWidth().height(statusTop + 72.dp).background(Brush.verticalGradient(
+                            listOf(Color.Black.copy(alpha = .72f), Color.Transparent))))
                     }
                     Column(Modifier.fillMaxWidth().padding(start = 130.dp, end = 16.dp, top = 8.dp).heightIn(min = 78.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
