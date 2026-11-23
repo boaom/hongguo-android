@@ -253,6 +253,9 @@ public class PlaybackRecoveryTest {
     }
 
     @Test public void expiredBudgetStartsNoNewPlaybackRequests() throws Exception {
+        // 该用例断言"预算耗尽时 fresh 恰好一次"，依赖身份缓存为空；而声明序在前的用例
+        // 会把成功身份写进缓存（静态字段跨测试保留）。这里显式清缓存保证可复现。
+        AppSource.discardPlaybackIdentity();
         assertThrows(java.io.IOException.class, () -> AppSource.fetch("1", "auto", 0));
         assertEquals(0, registrations.get());
         AtomicInteger singles = new AtomicInteger();
