@@ -31,6 +31,12 @@ public class MobilePlayerV5TabRequestTest {
         assertEquals("不应声明 Content-Type", null, req.getHeaders().get("Content-Type"));
         assertEquals("不应声明 Content-Encoding", null, req.getHeaders().get("Content-Encoding"));
         assertEquals("不应带 x-ss-stub", null, req.getHeaders().get("x-ss-stub"));
+        // 官方形态带设备 Cookie 与 store-region 头（抓包实证），缺失时服务端回 200+空正文。
+        assertNotNull("应带 Cookie", req.getHeaders().get("Cookie"));
+        assertTrue("Cookie 含 install_id",
+                req.getHeaders().get("Cookie").contains("install_id=1905892595382586"));
+        assertEquals("cn-sh", req.getHeaders().get("x-tt-store-region"));
+        assertEquals("did", req.getHeaders().get("x-tt-store-region-src"));
 
         String query = req.getUrl().substring(req.getUrl().indexOf('?') + 1);
         for (String field : new String[]{"aid=8662", "video_id=7600000000000000001",

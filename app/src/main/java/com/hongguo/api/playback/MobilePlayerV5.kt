@@ -37,9 +37,18 @@ object MobilePlayerV5 {
             "video_platform" to "1024", "source" to "0", "from_video_id" to "",
         )
         val signed = signer.signPlaybackGet(TAB_ENDPOINT, values, now)
+        // 官方形态带设备 Cookie 与 store-region 头（抓包实证）：服务端据此判定设备/区域，
+        // 缺失时表现为 200 + 空正文。install_id 即注册身份的 iid，Cookie 不参与签名计算。
+        val deviceCookie = "store-region=cn-sh; store-region-src=did; install_id=$iid"
         return TabRequest(
             signed.url,
-            signed.headers + mapOf("User-Agent" to TAB_UA, "Accept" to "application/json"),
+            signed.headers + mapOf(
+                "User-Agent" to TAB_UA,
+                "Accept" to "application/json",
+                "Cookie" to deviceCookie,
+                "x-tt-store-region" to "cn-sh",
+                "x-tt-store-region-src" to "did",
+            ),
         )
     }
 
