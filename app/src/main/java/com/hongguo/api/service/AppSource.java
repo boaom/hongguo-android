@@ -354,8 +354,12 @@ public final class AppSource {
     private static final int PLAYBACK_TIMEOUT_MS = 8_000;
 
     /** 播放接口 HTTP 状态异常：换路径可能恢复，与业务或格式错误不同。 */
-    static final class PlaybackHttpException extends IllegalStateException {
-        final int status;
+    /**
+     * 非 200 的播放 HTTP 响应。status 需对 UI 层可见（DramaRepository 用它区分
+     * 403/429 与其它状态的可重试性），故声明为 public。
+     */
+    public static final class PlaybackHttpException extends IllegalStateException {
+        public final int status;
         PlaybackHttpException(int status) {
             super("App 接口 HTTP " + status);
             this.status = status;
