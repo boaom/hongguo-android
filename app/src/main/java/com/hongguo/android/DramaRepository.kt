@@ -264,8 +264,12 @@ fun readableFailure(error: Throwable, action: String): String {
         return "推荐接口暂未返回新作品（最近已去重 ${it.remembered} 部），可稍后刷新，或切换其他分类继续发现。"
     }
     chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackRejectedException }?.let {
+        // 上游 backoff（Retry-After）：秒数随异常带出，提示更可执行。
+        val seconds = it.retryAfter?.trim()?.toIntOrNull()
+        if (seconds != null && seconds > 0) return "播放服务繁忙，请约 $seconds 秒后再试。"
         return it.message ?: "播放服务拒绝请求，请稍后重试。"
     }
+    // PlaybackBackoffException 为兼容保留的历史类型（当前链路不再抛出）。
     chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackBackoffException }?.let {
         val seconds = it.retryAfter.toIntOrNull()
         return if (seconds != null && seconds > 0)

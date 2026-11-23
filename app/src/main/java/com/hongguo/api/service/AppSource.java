@@ -279,9 +279,14 @@ public final class AppSource {
 
     public static final class PlaybackRejectedException extends IllegalStateException {
         private final boolean backoff;
+        /** 上游 Retry-After 头的原始值；backoff 时供 UI 显示"约 N 秒后再试"。可为 null。 */
+        public final String retryAfter;
 
         public PlaybackRejectedException(String message) { this(message, false); }
-        public PlaybackRejectedException(String message, boolean backoff) { super(message); this.backoff = backoff; }
+        public PlaybackRejectedException(String message, boolean backoff) { this(message, backoff, null); }
+        public PlaybackRejectedException(String message, boolean backoff, String retryAfter) {
+            super(message); this.backoff = backoff; this.retryAfter = retryAfter;
+        }
 
         private void forgetRejectedIdentity(PlaybackDevice.Identity identity) {
             if (!backoff) PLAYBACK_IDENTITY.compareAndSet(identity, null);
@@ -306,8 +311,9 @@ public final class AppSource {
         checkPlaybackRejection(response.status);
         String wait = response.header("Retry-After");
         if (wait != null && !wait.trim().isEmpty()) {
-            // 用专用异常把秒数带给 UI（DramaRepository.readableFailure 会读 retryAfter）。
-            throw new PlaybackBackoffException(wait.trim());
+            // 上游语义：backoff 归类为"拒绝即停"（retryablePlaybackFailure 判 false）。
+            // retryAfter 秒数随异常带给 UI（DramaRepository.readableFailure 读取）。
+            throw new PlaybackRejectedException("播放服务要求稍后重试（HTTP " + response.status + "）", true, wait.trim());
         }
     }
 

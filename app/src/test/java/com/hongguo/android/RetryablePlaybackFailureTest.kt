@@ -24,15 +24,17 @@ class RetryablePlaybackFailureTest {
     }
 
     @Test fun backoffIsNotRetryable() {
-        // 上游带 Retry-After 的繁忙信号：换身份重试只会空转预算，等 N 秒再试才有意义。
-        assertFalse(retryablePlaybackFailure(AppSource.PlaybackBackoffException("30")))
-        assertFalse(retryablePlaybackFailure(java.io.IOException("包装", AppSource.PlaybackBackoffException("30"))))
+        // 上游带 Retry-After 的繁忙信号（backoff=true 的 RejectedException）：
+        // 换身份重试只会空转预算，等 N 秒再试才有意义。
+        assertFalse(retryablePlaybackFailure(AppSource.PlaybackRejectedException("播放服务要求稍后重试", true, "30")))
+        assertFalse(retryablePlaybackFailure(java.io.IOException("包装",
+            AppSource.PlaybackRejectedException("播放服务要求稍后重试", true, "30"))))
     }
 
     @Test fun backoffMessageShowsWaitSeconds() {
-        val msg = readableFailure(AppSource.PlaybackBackoffException("30"), "准备播放")
+        val msg = readableFailure(AppSource.PlaybackRejectedException("播放服务要求稍后重试", true, "30"), "准备播放")
         assertTrue("应提示秒数，实际=$msg", msg.contains("30 秒"))
-        assertTrue(readableFailure(AppSource.PlaybackBackoffException("soon"), "准备播放").contains("稍后"))
+        assertTrue(readableFailure(AppSource.PlaybackRejectedException("播放服务要求稍后重试", true, "soon"), "准备播放").contains("稍后"))
     }
 
     @Test fun http403And429AreNotRetryable() {
