@@ -141,6 +141,7 @@ public final class AppSource {
         PlaybackDevice.Identity identity = PLAYBACK_IDENTITY.get();
         if (identity == null) identity = PlaybackDevice.fresh();
         Exception failure = null;
+        Exception publicFallbackFailure = null;
         Exception modelFailure = null;
         IOException renewal = null;
         // 2026-11-20 起：player/v1 的 v5 POST 与旧的签名 video_tab 都只回 200 + 0 字节，
@@ -279,11 +280,8 @@ public final class AppSource {
                 throw cancelled;
             } catch (Exception unavailable) {
                 if (Thread.currentThread().isInterrupted()) throw unavailable;
-                if (modelFailure == null && failure == null) {
-                    // 原生失败与公开片源失败同等重要，一起带出去便于定位。
-                    unavailable.addSuppressed(new EmptyPlaybackResponseException(firstHopFailure));
-                    throw unavailable;
-                }
+                // 兜底失败不改变上报的异常类型：只记下来，稍后挂到 suppressed 便于定位。
+                publicFallbackFailure = unavailable;
             }
         }
         // 模型错误比 HTTP/空响应更能说明本集的情况（如仅有 ByteVC2），优先报告。
@@ -291,6 +289,7 @@ public final class AppSource {
         if (failure != null) throw failure;
         EmptyPlaybackResponseException empty = new EmptyPlaybackResponseException(firstHopFailure);
         if (renewal != null) empty.addSuppressed(renewal);
+        if (publicFallbackFailure != null) empty.addSuppressed(publicFallbackFailure);
         throw empty;
     }
 
