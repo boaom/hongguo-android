@@ -60,6 +60,8 @@ data class HongguoUiState(
     val libraryError: String? = null,
     val history: List<LibraryEntry> = emptyList(),
     val libraryCloud: Boolean = false,
+    /** 从「我的」直达云片单预约列表的一次性意图；RailLibrary 消费后清除。 */
+    val openReservations: Boolean = false,
     val query: String = "",
     val searchedQuery: String = "",
     val results: List<DramaCard> = emptyList(),
@@ -193,6 +195,23 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) loadRank(state.value.rankBoard, 1)
     }
 
+    /** 发现页也展示榜单摘要，但不该为了取数据把用户导航到完整榜单页。 */
+    fun loadRankPreview() {
+        if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) {
+            loadRank(state.value.rankBoard, 1)
+        }
+    }
+
+    /** 榜单摘要失败后的重试：空榜从第一页重来，有榜则保留内容加载下一页。 */
+    fun retryRankPreview() {
+        if (state.value.rankEntries.isEmpty()) {
+            mutableState.update { it.copy(rankError = null) }
+            loadRank(state.value.rankBoard, 1)
+        } else {
+            retryRank()
+        }
+    }
+
     fun selectRankBoard(board: RankBoard) {
         if (board == state.value.rankBoard) return
         mutableState.update { it.copy(rankBoard = board, rankEntries = emptyList(), rankPage = 0, rankTotalPages = 0, rankError = null) }
@@ -240,7 +259,17 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     fun closeThemeStyle() = navigate(themeOrigin, rememberOrigin = false)
     fun selectLibrarySource(cloud: Boolean) {
         librarySourceChosen = true
-        mutableState.update { it.copy(libraryCloud = cloud) }
+        mutableState.update { it.copy(libraryCloud = cloud, openReservations = false) }
+    }
+
+    /** 从「我的」一步打开云片单的预约列表。 */
+    fun showReservations() {
+        librarySourceChosen = true
+        mutableState.update { it.copy(libraryCloud = true, openReservations = true, tab = AppTab.FAVORITES) }
+    }
+
+    fun consumeReservationsIntent() {
+        if (state.value.openReservations) mutableState.update { it.copy(openReservations = false) }
     }
 
     /** A signed-in account's records come first, until the user picks a source themself. Signing out resets this. */
