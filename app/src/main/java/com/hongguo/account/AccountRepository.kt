@@ -65,10 +65,6 @@ internal interface AccountLogin {
     fun qr(): WebLogin.Qr
     fun poll(): Boolean
     fun credentials(): AccountCredentials
-
-    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
-    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
-
     fun send(number: String): PhoneLogin.Sent
     fun verify(code: String): AccountCredentials
     fun cancel()
@@ -101,6 +97,9 @@ private class LiveAccountLogin : AccountLogin {
     override fun qr() = login.qr()
     override fun poll() = login.poll()
     override fun credentials() = login.credentials()
+
+    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
+    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
     override fun send(number: String) = phone.send(number)
     override fun verify(code: String) = phone.verify(code)
     override fun cancel() { login.cancel(); phone.cancel() }
