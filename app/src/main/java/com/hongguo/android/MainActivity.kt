@@ -85,7 +85,9 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(signedIn) { model.onAccountSession(signedIn) }
                 // 官网访客播放通道：同步登录 Cookie。未导入时为空串，保持匿名访客模式；
                 // 导入后 pcAuthenticatedPlayback=true，可获取完整分集。
-                LaunchedEffect(signedIn) {
+                // 注意：导入官网 Cookie 后状态是 WEBSITE_ONLY 而非 LOGGED_IN，
+                // 所以这里必须监听全部账号状态，不能只看 signedIn，否则 Cookie 注入不进去。
+                LaunchedEffect(accountState.sessionStatus, accountState.profile, accountState.websiteProfile) {
                     com.hongguo.api.service.PublicEpisodeSource.setWebsiteCookie(
                         accountModel.websiteCookie(), accountModel.websiteCookieSource())
                 }
