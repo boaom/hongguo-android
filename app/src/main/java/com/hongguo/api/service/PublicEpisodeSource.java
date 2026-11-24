@@ -60,6 +60,7 @@ public final class PublicEpisodeSource {
 
     public static final class GuestUnavailableException extends GuestPlaybackException {
         public GuestUnavailableException() { super("官网暂未向访客提供本集完整片源"); }
+        GuestUnavailableException(String detail) { super(detail); }
     }
 
     public static final class GuestRateLimitedException extends GuestPlaybackException {
@@ -108,17 +109,29 @@ public final class PublicEpisodeSource {
         Map<String, Object> series = Json.optObj(page.get("seriesDetail"));
         if (series == null || !seriesId.equals(Json.optStr(series.get("series_id")))) throw invalid();
         Map<String, Object> access = Json.optObj(page.get("req"));
-        if (access == null || !Boolean.FALSE.equals(access.get("pcLoginRequired"))
-                || !Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback"))) throw new GuestUnavailableException();
+        if (access == null) throw new GuestUnavailableException();
+        if (!Boolean.FALSE.equals(access.get("pcLoginRequired"))) {
+            throw new GuestUnavailableException("本剧在官网要求登录后播放，访客通道不可用");
+        }
+        if (!Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback"))) {
+            throw new GuestUnavailableException("官网只对已登录用户开放本剧，访客通道不可用");
+        }
         List<Object> episodes = Json.optArr(series.get("vid_list"));
         int accessible;
         try { accessible = Integer.parseInt(Json.optStr(series.get("accessible_episode_cnt"))); }
-        catch (NumberFormatException ignored) { throw new GuestUnavailableException(); }
+        catch (NumberFormatException ignored) {
+            throw new GuestUnavailableException("官网未公布本剧的访客可播集数，暂不能确认能否播放");
+        }
         boolean available = false;
         for (int i = 0; i < Math.min(episodes.size(), accessible); i++) {
             if (vid.equals(Json.optStr(episodes.get(i)))) { available = true; break; }
         }
-        if (!available) throw new GuestUnavailableException();
+        if (!available) {
+            int position = episodes.indexOf(vid);
+            throw new GuestUnavailableException("官网仅向访客开放前 " + Math.min(accessible, episodes.size())
+                    + " 集（本剧共 " + episodes.size() + " 集"
+                    + (position > 0 ? "，当前是第 " + (position + 1) + " 集" : "") + "）");
+        }
 
         Stream.VideoTrack track = new Stream.VideoTrack();
         track.publicDurationSeconds = 0.0;
@@ -174,7 +187,9 @@ public final class PublicEpisodeSource {
         String backoff = response.header("Retry-After");
         int status = response.code();
         if (status == 429 || (backoff != null && !backoff.trim().isEmpty())) throw new GuestRateLimitedException();
-        if ((status >= 300 && status < 400) || status == 401 || status == 403 || status == 404) throw new GuestUnavailableException();
+        if ((status >= 300 && status < 400) || status == 401 || status == 403 || status == 404) {
+            throw new GuestUnavailableException("官网拒绝提供本集片源（HTTP " + status + "）");
+        }
         if (status != 200) throw new InvalidResponseException("官网片源请求失败（HTTP " + status + "）");
     }
 
