@@ -119,8 +119,22 @@ class AccountRepository internal constructor(
     val state: StateFlow<AccountState> = mutableState.asStateFlow()
     private var disk = AccountDisk()
 
-    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
-    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
+    /**
+     * 已导入的登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。
+     *
+     * <p>优先官网 Cookie（hongguoduanju.com 域）；只有 App Cookie 时也返回它——
+     * 域名不同通常无效，但比空串多一次机会，且便于文案区分「完全没导入」。
+     */
+    fun websiteCookie(): String =
+        disk.websiteCredentials?.cookie?.takeIf { it.isNotBlank() }
+            ?: disk.credentials?.cookie.orEmpty()
+
+    /** 当前 Cookie 来源：WEBSITE / APP / NONE，用于向用户说明播放通道处于何种登录态。 */
+    fun websiteCookieSource(): String = when {
+        !disk.websiteCredentials?.cookie.isNullOrBlank() -> "WEBSITE"
+        !disk.credentials?.cookie.isNullOrBlank() -> "APP"
+        else -> "NONE"
+    }
     private var generation = 0L
     private var ownerGeneration = 0L
     private val observationSequence = AtomicLong()

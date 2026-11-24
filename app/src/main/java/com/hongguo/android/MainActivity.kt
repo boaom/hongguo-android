@@ -86,7 +86,8 @@ class MainActivity : ComponentActivity() {
                 // 官网访客播放通道：同步登录 Cookie。未导入时为空串，保持匿名访客模式；
                 // 导入后 pcAuthenticatedPlayback=true，可获取完整分集。
                 LaunchedEffect(signedIn) {
-                    com.hongguo.api.service.PublicEpisodeSource.setWebsiteCookie(accountModel.websiteCookie())
+                    com.hongguo.api.service.PublicEpisodeSource.setWebsiteCookie(
+                        accountModel.websiteCookie(), accountModel.websiteCookieSource())
                 }
                 BackHandler(enabled = state.playerOpen || state.selectedCard != null || state.tab != AppTab.HOME) {
                     when {

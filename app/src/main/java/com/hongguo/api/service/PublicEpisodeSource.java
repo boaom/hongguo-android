@@ -61,9 +61,23 @@ public final class PublicEpisodeSource {
      * 播放页的 {@code pcAuthenticatedPlayback} 为 true，可拿到完整分集。
      */
     private static volatile String websiteCookie = "";
+    private static volatile String cookieSource = "NONE";
 
-    public static void setWebsiteCookie(String cookie) {
+    /** 同步登录 Cookie 并记录来源（WEBSITE / APP / NONE），后者只用于给用户的说明文案。 */
+    public static void setWebsiteCookie(String cookie, String source) {
         websiteCookie = cookie == null ? "" : cookie.trim();
+        cookieSource = source == null ? "NONE" : source;
+    }
+
+    public static void setWebsiteCookie(String cookie) { setWebsiteCookie(cookie, "WEBSITE"); }
+
+    /** 当前播放通道的登录态描述，拼进错误文案，让用户能判断 Cookie 是否真的生效。 */
+    static String loginMode() {
+        switch (cookieSource) {
+            case "WEBSITE": return "已带官网 Cookie";
+            case "APP": return "只带 App Cookie（对官网通常无效，请改导官网 Cookie）";
+            default: return "未导入 Cookie（匿名访客）";
+        }
     }
 
     private static boolean signedIn() { return !websiteCookie.isEmpty(); }
@@ -130,7 +144,9 @@ public final class PublicEpisodeSource {
         Map<String, Object> series = Json.optObj(page.get("seriesDetail"));
         if (series == null || !seriesId.equals(Json.optStr(series.get("series_id")))) throw invalid();
         Map<String, Object> access = Json.optObj(page.get("req"));
-        if (access == null) throw new GuestUnavailableException();
+        if (access == null) {
+            throw new GuestUnavailableException("官网播放页未返回访客权限信息；" + loginMode());
+        }
         // 匿名访问时要求「不强制登录且非登录播放」；已注入官网 Cookie 时允许登录播放。
         if (!Boolean.FALSE.equals(access.get("pcLoginRequired")) && !signedIn()) {
             throw new GuestUnavailableException("本剧在官网要求登录后播放，请在「我的 → 账号」导入官网 Cookie");
@@ -150,9 +166,9 @@ public final class PublicEpisodeSource {
         }
         if (!available) {
             int position = episodes.indexOf(vid);
-            throw new GuestUnavailableException("官网仅向访客开放前 " + Math.min(accessible, episodes.size())
+            throw new GuestUnavailableException("官网仅开放前 " + Math.min(accessible, episodes.size())
                     + " 集（本剧共 " + episodes.size() + " 集"
-                    + (position > 0 ? "，当前是第 " + (position + 1) + " 集" : "") + "）");
+                    + (position > 0 ? "，当前是第 " + (position + 1) + " 集" : "") + "）；" + loginMode());
         }
 
         Stream.VideoTrack track = new Stream.VideoTrack();
