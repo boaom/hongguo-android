@@ -13,9 +13,9 @@ android {
         applicationId = "com.hongguo.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = providers.gradleProperty("appVersionCode").orElse("44").get().toInt()
-        versionName = providers.gradleProperty("appVersionName").orElse("0.7.33").get()
-        // 更新源指向自己的仓库，避免弹出上游 0.7.33 更新提示（签名与渠道都不同）。
+        versionCode = providers.gradleProperty("appVersionCode").orElse("45").get().toInt()
+        versionName = providers.gradleProperty("appVersionName").orElse("0.7.34").get()
+        // 更新源指向自己的仓库，避免弹出上游更新提示（签名与分发渠道都不同）。
         buildConfigField("String", "UPDATE_REPOSITORY", "\"boaom/hongguo-android\"")
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/boaom/hongguo-android/releases/latest/download/update.json\"")
         testInstrumentationRunner = "com.hongguo.android.HongguoTestRunner"

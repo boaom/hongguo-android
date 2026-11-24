@@ -10,7 +10,6 @@ import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,10 +42,6 @@ public final class Stream {
     private static final long CACHE_BYTES = 512L * 1024 * 1024;
     private static final long MAX_MEDIA_BYTES = CACHE_BYTES;
     private static final long MAX_MOOV_BYTES = 32L * 1024 * 1024;
-    /** Whole-file download attempts; each one after the first resumes the partial file with a Range request. */
-    private static final int DOWNLOAD_ATTEMPTS = 3;
-    /** Package-private so a host probe can shorten it; production keeps the network value. */
-    static volatile long DOWNLOAD_READ_TIMEOUT_MILLIS = 10000;
     private static final Object CACHE_GUARD = new Object();
     private static final Map<String, Integer> PINS = new HashMap<>();
     private static final Set<String> INITIALIZED_DIRS = new HashSet<>();
@@ -67,6 +62,8 @@ public final class Stream {
         public boolean encrypt;
         public String definition = "?";
         public long size;
+        /** Guest MP4 duration from the episode page. Zero means unlisted; native tracks leave this null. */
+        public Double publicDurationSeconds;
     }
 
     public static VideoTrack videoTrack(String vid, String quality) throws Exception {
@@ -91,11 +88,12 @@ public final class Stream {
         return q.endsWith("p") ? q : q + "p";
     }
 
-    private static Path outputPath(String vid, String quality) {
+    private static Path outputPath(String vid, String quality, Double publicDuration) {
         if (vid == null || !vid.matches("[0-9]{1,30}")) {
             throw new IllegalArgumentException("分集编号无效");
         }
-        return cacheDir().resolve(vid + "_" + qualityOf(quality) + ".play.mp4");
+        String suffix = publicDuration == null ? ".play.mp4" : ".guest.play.mp4";
+        return cacheDir().resolve(vid + "_" + qualityOf(quality) + suffix);
     }
 
     private static void initializeCache(Path dir) throws IOException {
@@ -116,10 +114,16 @@ public final class Stream {
 
     /** Only atomically published .play.mp4 files are cache hits. */
     public static String cachedPath(String vid, String quality) {
-        Path out = outputPath(vid, quality);
+        return cachedPath(vid, quality, null);
+    }
+
+    public static String cachedPath(String vid, String quality, Double publicDuration) {
+        Path out = outputPath(vid, quality, publicDuration);
         synchronized (CACHE_GUARD) {
             try {
-                if (Files.isRegularFile(out) && Files.size(out) > 0) return out.toString();
+                if (!Files.isRegularFile(out) || Files.size(out) == 0) return null;
+                if (publicDuration != null) validateMp4(out, true, publicDuration);
+                return out.toString();
             } catch (IOException ignored) { }
         }
         return null;
@@ -130,30 +134,16 @@ public final class Stream {
     }
 
     /**
-     * Compatibility path when the caller already resolved the source (see
-     * {@link ProgressiveMedia.UnsupportedException#carriedTrack()}). Resolving again would repeat the
-     * identity/route/signature work that just succeeded, so it is skipped here.
-     */
-    public static String prepareWithTrack(String vid, String quality, String url, String spadeA,
-                                          boolean encrypt, String definition, long size,
-                                          Progress progress) throws Exception {
-        Path out = outputPath(vid, quality);
-        checkCancelled(progress);
-        VideoTrack track = new VideoTrack();
-        track.url = url;
-        track.spadeA = spadeA;
-        track.encrypt = encrypt;
-        track.definition = definition;
-        track.size = size;
-        return prepareTrack(track, out, progress);
-    }
-
-    /**
      * Resolve, download and prepare one complete MP4. Nothing is published on failure/cancellation.
      * Calls for the same vid/quality serialize and reuse the first successful result.
      */
     public static String prepare(String vid, String quality, Progress progress) throws Exception {
-        Path out = outputPath(vid, quality);
+        return prepare(vid, quality, null, progress);
+    }
+
+    public static String prepare(String vid, String quality, VideoTrack resolved, Progress progress) throws Exception {
+        Double publicDuration = resolved == null ? null : resolved.publicDurationSeconds;
+        Path out = outputPath(vid, quality, publicDuration);
         String q = qualityOf(quality);
         initializeCache(out.getParent());
         checkCancelled(progress);
@@ -173,7 +163,7 @@ public final class Stream {
             update(progress, "waiting", 0, -1);
             while (!(locked = keyed.lock.tryLock(200, TimeUnit.MILLISECONDS))) checkCancelled(progress);
             checkCancelled(progress);
-            String hit = cachedPath(vid, q);
+            String hit = cachedPath(vid, q, publicDuration);
             if (hit != null) {
                 touch(out);
                 update(progress, "cached", Files.size(out), Files.size(out));
@@ -183,7 +173,7 @@ public final class Stream {
             checkCancelled(progress);
             pruneCache(null);
             update(progress, "resolving", 0, -1);
-            VideoTrack track = videoTrack(vid, q);
+            VideoTrack track = resolved != null ? resolved : videoTrack(vid, q);
             checkCancelled(progress);
             if (track == null || track.url == null || track.url.isEmpty()) {
                 throw new IOException("暂时无法获取本集播放信息");
@@ -212,7 +202,7 @@ public final class Stream {
         try {
             encrypted = Files.createTempFile(dir, "media-", ".enc.tmp");
             playable = Files.createTempFile(dir, "media-", ".play.tmp");
-            download(track.url, encrypted, progress);
+            download(track.url, encrypted, progress, track.publicDurationSeconds != null);
             checkCancelled(progress);
             update(progress, "processing", 0, -1);
             if (track.encrypt) {
@@ -225,7 +215,7 @@ public final class Stream {
             } else {
                 // Unencrypted tracks still must be a complete MP4 before they become cache hits, and must really be
                 // unencrypted: a source without encryption info is taken as plain only when its index says so.
-                validateMp4(encrypted, true);
+                validateMp4(encrypted, true, track.publicDurationSeconds);
                 moveAtomically(encrypted, playable);
             }
             checkCancelled(progress);
@@ -247,11 +237,13 @@ public final class Stream {
         }
     }
 
-    /**
-     * True streaming download, 64KB buffer. A stalled transfer keeps the partial file and the next attempt
-     * resumes it with a Range request, so one network hiccup no longer costs the whole episode.
-     */
-    static long download(String url, Path dest, Progress progress) throws IOException {
+    /** True streaming download, 64KB buffer. Interrupted/cancelled reads leave no cache entry. */
+    public static long download(String url, Path dest) throws IOException {
+        return download(url, dest, null, false);
+    }
+
+    private static long download(String url, Path dest, Progress progress, boolean guest) throws IOException {
+        checkCancelled(progress);
         URI uri;
         try { uri = URI.create(url); } catch (IllegalArgumentException e) {
             throw new IOException("媒体地址无效");
@@ -259,79 +251,37 @@ public final class Stream {
         if (!"https".equalsIgnoreCase(uri.getScheme()) && !"http".equalsIgnoreCase(uri.getScheme())) {
             throw new IOException("媒体地址协议无效");
         }
-        IOException failure = null;
-        for (int attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
-            checkCancelled(progress);
-            long size = partialSize(dest);
-            if (attempt > 1) update(progress, "downloading", size, -1);
-            Attempt result = downloadAttempt(uri, dest, size, progress);
-            if (result == null) return Files.size(dest);
-            failure = result.failure;
-            // Only a stalled transfer is worth resuming: the bytes already written are valid and the next
-            // attempt continues from them. Anything else (a short body, a rejected status) is the node
-            // disagreeing about the resource, and asking it again just repeats the failure.
-            boolean resumable = result.progress && result.failure instanceof SocketTimeoutException;
-            if (!resumable || attempt == DOWNLOAD_ATTEMPTS) break;
-            sleepBeforeRetry(progress, attempt);
-        }
-        deleteQuietly(dest);
-        throw failure != null ? failure : new IOException("媒体下载失败");
-    }
-
-    /** One download attempt: null on success, otherwise the failure plus whether the attempt made progress. */
-    private static final class Attempt {
-        final IOException failure;
-        final boolean progress;
-        Attempt(IOException failure, boolean progress) { this.failure = failure; this.progress = progress; }
-    }
-
-    private static Attempt attempted(IOException failure, boolean progress) { return new Attempt(failure, progress); }
-
-    private static long partialSize(Path dest) {
-        try { return Files.exists(dest) ? Files.size(dest) : 0; } catch (IOException ignored) { return 0; }
-    }
-
-    private static void sleepBeforeRetry(Progress progress, int attempt) throws IOException {
-        long until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(500L * attempt);
-        while (System.nanoTime() < until) {
-            checkCancelled(progress);
-            try { Thread.sleep(Math.max(1, Math.min(50, TimeUnit.NANOSECONDS.toMillis(until - System.nanoTime())))); }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw cancelled(); }
-        }
-    }
-
-    /** One download attempt: null on success, otherwise the failure plus whether the attempt made progress. */
-    private static Attempt downloadAttempt(URI uri, Path dest, long already, Progress progress) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-        connection.setInstanceFollowRedirects(true);
-        connection.setConnectTimeout(10000);
-        // Every retry pays this timeout again, so an over-long value turns one stalled connection into a
-        // multi-attempt stall; the original 5 s traded that for a higher rate of restarts.
-        connection.setReadTimeout((int) DOWNLOAD_READ_TIMEOUT_MILLIS);
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-        connection.setRequestProperty("Accept-Encoding", "identity");
-        if (already > 0) connection.setRequestProperty("Range", "bytes=" + already + "-");
-        long written = 0;
+        if (guest) ProgressiveMedia.trustedMediaUri(uri, false);
+        HttpURLConnection connection = null;
+        boolean complete = false;
         try {
             int status;
-            try { status = connection.getResponseCode(); }
-            catch (IOException refused) { return attempted(refused, false); }
-            checkCancelled(progress);
-            if (status != 200 && status != 206) {
-                return attempted(new IOException("媒体下载失败（HTTP " + status + "）"), false);
+            for (int redirects = 0; ; redirects++) {
+                checkCancelled(progress);
+                connection = (HttpURLConnection) uri.toURL().openConnection();
+                connection.setInstanceFollowRedirects(!guest);
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(5000);
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                connection.setRequestProperty("Accept-Encoding", "identity");
+                status = connection.getResponseCode();
+                if (!guest) break;
+                if (connection.getHeaderField("Retry-After") != null) throw new IOException("媒体服务要求稍后重试");
+                if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) break;
+                String location = connection.getHeaderField("Location");
+                if (redirects >= 5 || location == null) throw new IOException("媒体重定向异常");
+                try { uri = ProgressiveMedia.trustedMediaUri(uri.resolve(location), true); }
+                catch (IllegalArgumentException invalid) { throw new IOException("媒体重定向异常"); }
+                connection.disconnect();
             }
-            // A 206 that does not start where we asked would corrupt the file, so it is not appending.
-            boolean appending = status == 206 && already > 0;
-            long chunk = connection.getContentLengthLong();
-            long total = appending ? already + chunk : chunk;
-            if (total > MAX_MEDIA_BYTES) return attempted(new IOException("本集文件超出缓存容量限制"), false);
-            long got = appending ? already : 0;
+            checkCancelled(progress);
+            if (status != 200) throw new IOException("媒体下载失败（HTTP " + status + "）");
+            long total = connection.getContentLengthLong();
+            if (total > MAX_MEDIA_BYTES) throw new IOException("本集文件超出缓存容量限制");
+            update(progress, "downloading", 0, total > 0 ? total : -1);
+            long got = 0;
             long lastProgress = 0;
-            try (InputStream in = connection.getInputStream();
-                 OutputStream target = Files.newOutputStream(dest, appending
-                         ? new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.APPEND}
-                         : new java.nio.file.OpenOption[]{java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                                 java.nio.file.StandardOpenOption.CREATE})) {
+            try (InputStream in = connection.getInputStream(); OutputStream target = Files.newOutputStream(dest)) {
                 byte[] buffer = new byte[65536];
                 for (;;) {
                     checkCancelled(progress);
@@ -340,28 +290,23 @@ public final class Stream {
                     if (n == 0) continue;
                     checkCancelled(progress);
                     got += n;
-                    if (got > MAX_MEDIA_BYTES) {
-                        return attempted(new IOException("本集文件超出缓存容量限制"), written > 0);
-                    }
+                    if (got > MAX_MEDIA_BYTES) throw new IOException("本集文件超出缓存容量限制");
                     target.write(buffer, 0, n);
-                    written += n;
                     long now = System.nanoTime();
                     if (now - lastProgress > 100_000_000L) {
                         update(progress, "downloading", got, total > 0 ? total : -1);
                         lastProgress = now;
                     }
                 }
-            } catch (IOException transfer) {
-                return attempted(transfer, written > 0);
             }
             checkCancelled(progress);
-            if (got == 0 || (total >= 0 && got != total) || got != Files.size(dest)) {
-                return attempted(new IOException("媒体下载不完整，请重试"), written > 0);
-            }
+            if (got == 0 || (total >= 0 && got != total)) throw new IOException("媒体下载不完整，请重试");
             update(progress, "downloading", got, total > 0 ? total : got);
-            return null;
+            complete = true;
+            return got;
         } finally {
-            connection.disconnect();
+            if (connection != null) connection.disconnect();
+            if (!complete) deleteQuietly(dest);
         }
     }
 
@@ -469,7 +414,7 @@ public final class Stream {
     }
 
     private static void validateMp4(Path path) throws IOException {
-        validateMp4(path, false);
+        validateMp4(path, false, null);
     }
 
     /** Whether a moov index carries protected sample entries or protection boxes (encv/enca/sinf). */
@@ -481,7 +426,15 @@ public final class Stream {
         return false;
     }
 
-    private static void validateMp4(Path path, boolean requirePlain) throws IOException {
+    static void checkPublicDuration(Double expected, double actual) throws IOException {
+        if (expected == null) return;
+        if (!Double.isFinite(actual) || actual <= 0 || !Double.isFinite(expected) || expected < 0 ||
+                (expected == 0 ? actual <= 11 : Math.abs(actual - expected) > 1)) {
+            throw new IOException("官网片源时长与完整分集不符");
+        }
+    }
+
+    private static void validateMp4(Path path, boolean requirePlain, Double publicDuration) throws IOException {
         try (RandomAccessFile file = new RandomAccessFile(path.toFile(), "r")) {
             long length = file.length();
             if (length < 24) throw new IOException("媒体文件无效");
@@ -510,6 +463,7 @@ public final class Stream {
             file.readFully(bytes);
             if (requirePlain && hasProtection(bytes)) throw new IOException("本集媒体已加密但缺少密钥，暂时无法播放");
             Mp4.Analysis analysis = Mp4.analyzeEncryptedTracks(new Mp4.ByteView(bytes, moov.start));
+            checkPublicDuration(publicDuration, analysis.movieDurationSeconds);
             if (analysis.tracks.isEmpty()) throw new IOException("媒体文件没有可播放轨道");
             for (Mp4.Track track : analysis.tracks) {
                 if (track.offsets.length != track.sampleCount || track.sizes.length != track.sampleCount) {
@@ -522,7 +476,7 @@ public final class Stream {
                     }
                 }
             }
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
             throw new IOException("媒体文件索引无效");
         }
     }

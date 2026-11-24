@@ -8,11 +8,14 @@ import com.hongguo.account.protocol.RelatedWorksClient
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import com.hongguo.api.service.Client
+import com.hongguo.api.service.AppSource
+import com.hongguo.api.service.PublicEpisodeSource
 import com.hongguo.api.service.Stream
 import com.hongguo.api.service.ProgressiveMedia
 import com.hongguo.api.util.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.CancellationException
@@ -164,7 +167,7 @@ class DramaRepository {
     /** Detail payloads escape separators; covers keep working after unescaping them. */
     private fun cleanUrl(value: String) = value.replace("\\/", "/").replace("\\u002F", "/").replace("&amp;", "&")
 
-    suspend fun prepare(episode: Episode, allowFallback: Boolean = true,
+    suspend fun prepare(episode: Episode, seriesId: String, allowFallback: Boolean = true,
                         progress: (String, Long, Long) -> Unit): PreparedVideo {
         val context = currentCoroutineContext()
         var allocated: ProgressiveMedia.Session? = null
@@ -177,32 +180,24 @@ class DramaRepository {
                     override fun update(stage: String, done: Long, total: Long) { progress(stage, done, total) }
                     override fun isCancelled(): Boolean = Thread.currentThread().isInterrupted || (opening && !context.isActive)
                 }
+                listener.update("resolving", 0, -1)
+                val track = AppSource.fetch(episode.id, "", seriesId)
+                context.ensureActive()
+                track.publicDurationSeconds?.let { duration ->
+                    Stream.cachedPath(episode.id, "", duration)?.let { return@runInterruptible PreparedVideo(episode.id, it) }
+                }
                 try {
-                    allocated = ProgressiveMedia.open(episode.id, "", listener)
+                    allocated = ProgressiveMedia.open(track, listener)
                     opening = false
                     PreparedVideo(episode.id, "", session = allocated)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (unsupported: ProgressiveMedia.UnsupportedException) {
                     if (!allowFallback) throw unsupported
                     progress("compatibility", 0, -1)
-                    val fallback = object : Stream.Progress {
+                    val path = Stream.prepare(episode.id, "", track, object : Stream.Progress {
                         override fun update(stage: String, done: Long, total: Long) { if (context.isActive) progress(stage, done, total) }
                         override fun isCancelled(): Boolean = !context.isActive || Thread.currentThread().isInterrupted
-                    }
-                    // Resolution already succeeded before the transport was rejected, so reuse it instead of
-                    // resolving again (identities, routes, signatures) on the slowest path. The Java fields are
-                    // platform types, so bind them to non-null locals before passing them on.
-                    val carried = unsupported.carriedTrack()
-                    val path = if (carried == null) {
-                        Stream.prepare(episode.id, "", fallback)
-                    } else {
-                        val url: String = carried.url
-                        val spadeA: String = carried.spadeA
-                        val definition: String = carried.definition
-                        val encrypt: Boolean = carried.encrypt
-                        val size: Long = carried.size
-                        Stream.prepareWithTrack(episode.id, "", url, spadeA, encrypt, definition, size, fallback)
-                    }
+                    })
                     PreparedVideo(episode.id, path)
                 }
             }
@@ -234,28 +229,6 @@ class DramaRepository {
     }
 }
 
-/**
- * 播放准备失败是否值得自动重试（纯函数，供 HongguoViewModel 的自动重试与单测使用）。
- *
- * 明确拒绝不值得重试：AppSource 已经把「业务/HTTP 拒绝即停」实现好了，外层再试只会
- * 拖慢错误展示并加重上游风控。命中 [AppSource.PlaybackRejectedException]，或
- * [AppSource.PlaybackHttpException] 状态 403/429（沿 cause 链判断）时返回 false；
- * 其余（空响应、SocketTimeout、注册失败等偶发抖动）返回 true，保持「网络抖动，自动重试」。
- */
-fun retryablePlaybackFailure(error: Throwable): Boolean {
-    var current: Throwable? = error
-    var hops = 0
-    while (current != null && hops < 8) {
-        if (current is com.hongguo.api.service.AppSource.PlaybackRejectedException) return false
-        if (current is com.hongguo.api.service.AppSource.PlaybackBackoffException) return false
-        if (current is com.hongguo.api.service.AppSource.PlaybackHttpException &&
-            (current.status == 403 || current.status == 429)) return false
-        current = current.cause
-        hops++
-    }
-    return true
-}
-
 /** Never expose provider response bodies, signed URLs or device identifiers in UI. */
 fun readableFailure(error: Throwable, action: String): String {
     val chain = generateSequence(error) { it.cause }.take(8).toList()
@@ -263,25 +236,12 @@ fun readableFailure(error: Throwable, action: String): String {
     chain.firstNotNullOfOrNull { it as? NoNewRecommendationsException }?.let {
         return "推荐接口暂未返回新作品（最近已去重 ${it.remembered} 部），可稍后刷新，或切换其他分类继续发现。"
     }
-    chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackRejectedException }?.let {
-        // 上游 backoff（Retry-After）：秒数随异常带出，提示更可执行。
-        val seconds = it.retryAfter?.trim()?.toIntOrNull()
-        if (seconds != null && seconds > 0) return "播放服务繁忙，请约 $seconds 秒后再试。"
+    chain.filterIsInstance<PublicEpisodeSource.GuestPlaybackException>().firstOrNull()?.message?.let { return it }
+    chain.firstNotNullOfOrNull { it as? AppSource.PlaybackRejectedException }?.let {
         return it.message ?: "播放服务拒绝请求，请稍后重试。"
     }
-    // PlaybackBackoffException 为兼容保留的历史类型（当前链路不再抛出）。
-    chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.PlaybackBackoffException }?.let {
-        val seconds = it.retryAfter.toIntOrNull()
-        return if (seconds != null && seconds > 0)
-            "播放服务繁忙，请约 $seconds 秒后再试。"
-        else "播放服务繁忙，请稍后再试。"
-    }
-    chain.firstNotNullOfOrNull { it as? com.hongguo.api.service.AppSource.EmptyPlaybackResponseException }?.let { empty ->
-        // 把首跳（video_tab v5 GET）的失败原因带出来：否则只剩「空响应」，无法判断是
-        // 签名/路由问题还是服务端限流。原因只含异常类名与 HTTP 状态，不含 URL 或身份。
-        val reason = empty.firstHopReason()
-        return if (reason == null) "播放服务连续返回空响应，请稍后重试或选择其他集。"
-        else "播放服务连续返回空响应（取源通道：$reason），请稍后重试或选择其他集。"
+    if (chain.any { it is AppSource.EmptyPlaybackResponseException }) {
+        return "播放服务连续返回空响应，请稍后重试或选择其他集。"
     }
     return when {
         chain.any { it is UnknownHostException } -> "网络连接不可用，请检查网络后重试。"
@@ -292,16 +252,11 @@ fun readableFailure(error: Throwable, action: String): String {
         hint.contains("empty_episodes") -> "暂时没有获取到可播放剧集，请稍后重试。"
         hint.contains("风控") || hint.contains("risk") || hint.contains("429") -> "片源服务暂时限制访问，请稍后重试。"
         hint.contains("bytevc2") -> "该集目前只有本机无法解码的 ByteVC2 片源，重试也无法播放，请选择其他集或稍后再试。"
+        hint.contains("官网片源时长与完整分集不符") -> "官网返回的视频时长与本集不符，请选择其他集或稍后重试。"
         hint.contains("无直链") || hint.contains("video_model") || hint.contains("片源") -> "该集片源暂时不可用，可重试或选择其他集。"
         hint.contains("解密") || hint.contains("cenc") || hint.contains("decrypt") ||
             hint.contains("封装") || hint.contains("媒体校验") || hint.contains("密钥格式") ||
             hint.contains("媒体索引") || hint.contains("媒体样本") -> "该集媒体格式暂不支持，可重试或选择其他集。"
-        hint.contains("register") -> "播放设备注册失败（上游拒绝或网络受限），可稍后重试，或换网络（如关闭 VPN）再试。"
-        // 兜底透出最内层原因，频繁失败时便于定位（消息不含敏感信息）。
-        else -> {
-            val cause = generateSequence(error) { it.cause }.lastOrNull()
-                ?.message.orEmpty().take(48).ifBlank { "未知原因" }
-            "${action}失败（$cause），请检查网络后重试。"
-        }
+        else -> "${action}失败，请检查网络后重试。"
     }
 }

@@ -60,8 +60,6 @@ data class HongguoUiState(
     val libraryError: String? = null,
     val history: List<LibraryEntry> = emptyList(),
     val libraryCloud: Boolean = false,
-    /** 从「我的」直达云片单预约列表的一次性意图；RailLibrary 消费后清除。 */
-    val openReservations: Boolean = false,
     val query: String = "",
     val searchedQuery: String = "",
     val results: List<DramaCard> = emptyList(),
@@ -114,9 +112,6 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     private val library = LibraryStore(application)
     private val accounts = (application as HongguoApplication).accountRepository
     private val preferences = application.getSharedPreferences(ThemePreferences.FILE, 0)
-    /** 播放准备失败后的自动重试次数；上游偶发空响应靠它兜住，减少用户手点重试。 */
-    private val AUTO_PLAY_RETRIES = 2
-
     private val mutableState = MutableStateFlow(HongguoUiState(query = preferences.getString("last_query", "").orEmpty(),
         autoPlayNext = preferences.getBoolean("auto_play_next", true), preloadNext = preferences.getBoolean("preload_next", true),
         playbackSpeed = runCatching { preferences.getFloat("playback_speed", 1f) }.getOrDefault(1f)
@@ -198,23 +193,6 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) loadRank(state.value.rankBoard, 1)
     }
 
-    /** 发现页也消费榜单摘要，但它不该为了取数据把用户导航到完整榜单页。 */
-    fun loadRankPreview() {
-        if (state.value.rankEntries.isEmpty() && !state.value.rankLoading) {
-            loadRank(state.value.rankBoard, 1)
-        }
-    }
-
-    /** 榜单摘要请求失败后的重试：空榜从第一页重来，有榜则保留已有内容加载下一页。 */
-    fun retryRankPreview() {
-        if (state.value.rankEntries.isEmpty()) {
-            mutableState.update { it.copy(rankError = null) }
-            loadRank(state.value.rankBoard, 1)
-        } else {
-            retryRank()
-        }
-    }
-
     fun selectRankBoard(board: RankBoard) {
         if (board == state.value.rankBoard) return
         mutableState.update { it.copy(rankBoard = board, rankEntries = emptyList(), rankPage = 0, rankTotalPages = 0, rankError = null) }
@@ -262,17 +240,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     fun closeThemeStyle() = navigate(themeOrigin, rememberOrigin = false)
     fun selectLibrarySource(cloud: Boolean) {
         librarySourceChosen = true
-        mutableState.update { it.copy(libraryCloud = cloud, openReservations = false) }
-    }
-
-    /** 从我的页一步打开云片单的预约列表。 */
-    fun showReservations() {
-        librarySourceChosen = true
-        mutableState.update { it.copy(libraryCloud = true, openReservations = true, tab = AppTab.FAVORITES) }
-    }
-
-    fun consumeReservationsIntent() {
-        if (state.value.openReservations) mutableState.update { it.copy(openReservations = false) }
+        mutableState.update { it.copy(libraryCloud = cloud) }
     }
 
     /** A signed-in account's records come first, until the user picks a source themself. Signing out resets this. */
@@ -607,7 +575,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
     internal suspend fun previewFirstEpisode(card: DramaCard): Pair<DramaDetail, PreparedVideo> {
         val detail = repository.details(card)
         val first = detail.episodes.first()
-        return detail to repository.prepare(first, allowFallback = false) { _, _, _ -> }
+        return detail to repository.prepare(first, detail.id, allowFallback = false) { _, _, _ -> }
     }
 
     /** Continues a feed preview in the full player at [positionMs] of [episode] instead of restarting it. */
@@ -698,38 +666,22 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         }
         releaseVideo(current.video)
         mediaJob = viewModelScope.launch {
-            var attempt = 0
-            while (true) {
-                try {
-                    val prepared = warmed ?: repository.prepare(episode) { stage, done, total ->
-                        if (version == mediaVersion) mutableState.update {
-                            it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
-                        }
-                    }
-                    if (version != mediaVersion || !currentCoroutineContext().isActive) {
-                        releaseVideo(prepared)
-                        return@launch
-                    }
-                    mutableState.update { it.copy(video = prepared.copy(requestId = version.toLong()), preparing = false, playbackStatus = "正在载入播放器") }
-                    return@launch
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    // 上游偶发空响应/注册失败可自愈（AppSource 本身就有换身份回退），这里再兜一层自动重试，
-                    // 免得上游抖动窗口里每次都要用户手点「重新播放」。换集/离开播放页（版本变化）立即停。
-                    // 明确拒绝（PlaybackRejectedException / HTTP 403/429）不重试：AppSource 已实现
-                    // 「拒绝即停」，外层重试只会拖慢错误展示并加重上游风控，立即展示错误。
-                    attempt++
-                    if (version != mediaVersion || !retryablePlaybackFailure(error) || attempt > AUTO_PLAY_RETRIES) {
-                        if (version == mediaVersion) mutableState.update {
-                            it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
-                        }
-                        return@launch
-                    }
+            try {
+                val prepared = warmed ?: repository.prepare(episode, detail.id) { stage, done, total ->
                     if (version == mediaVersion) mutableState.update {
-                        it.copy(preparationStage = "网络抖动，自动重试（第 $attempt 次）…")
+                        it.copy(preparationStage = stage, preparationDone = done, preparationTotal = total)
                     }
-                    delay(1500L * attempt)
+                }
+                if (version != mediaVersion || !currentCoroutineContext().isActive) {
+                    releaseVideo(prepared)
+                    return@launch
+                }
+                mutableState.update { it.copy(video = prepared.copy(requestId = version.toLong()), preparing = false, playbackStatus = "正在载入播放器") }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (version == mediaVersion) mutableState.update {
+                    it.copy(preparing = false, playbackError = readableFailure(error, "准备播放"), playbackStatus = "")
                 }
             }
         }
@@ -748,10 +700,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         if (position >= 0) playEpisode(position)
     }
 
-    /**
-     * 连续空响应时的自救：丢弃被上游风控的匿名播放身份，重新注册一批新身份再取流。
-     * 等价于用户「卸载重装」，但不丢播放进度和账号状态。
-     */
+    /** 连续空响应时的自救：丢弃被上游风控的匿名播放身份，重新注册后再取流。 */
     fun retryPlaybackWithNewIdentity() {
         com.hongguo.api.service.AppSource.discardPlaybackIdentity()
         val position = state.value.episodePosition
@@ -815,7 +764,8 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         val current = state.value
         if (!playerForeground || !bufferReadyForPrefetch || !current.playerOpen || !current.preloadNext || !current.firstFrameRendered || current.playbackError != null) return
         val requestId = current.video?.requestId ?: return
-        val episode = current.detail?.episodes?.getOrNull(current.episodePosition + 1) ?: return
+        val detail = current.detail ?: return
+        val episode = detail.episodes.getOrNull(current.episodePosition + 1) ?: return
         if (warmSlot?.episodeId == episode.id) return
         if (prefetchAttemptedFor == requestId) return
         prefetchAttemptedFor = requestId
@@ -825,7 +775,7 @@ class HongguoViewModel(application: Application) : AndroidViewModel(application)
         prefetchJob = viewModelScope.launch {
             var ready = false
             try {
-                val prepared = repository.prepare(episode, allowFallback = false) { _, _, _ -> }
+                val prepared = repository.prepare(episode, detail.id, allowFallback = false) { _, _, _ -> }
                 slot.video = prepared
                 if (warmSlot !== slot || !playerForeground) return@launch
                 repository.warmNext(prepared) { reader ->

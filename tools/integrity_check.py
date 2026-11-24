@@ -21,25 +21,26 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # 播放链修复必须存在的锚点：文件 -> [正则...]
 ANCHORS = {
-    "app/src/main/java/com/hongguo/android/DramaRepository.kt": [
-        r"fun\s+retryablePlaybackFailure",
-    ],
+    # 2026-11-24 合并上游 0.7.34 后：播放链=原生(v5 GET/单集/路由) + 官网访客通道，
+    # 重试逻辑内聚到 AppSource.PlaybackAttempts，UI 层不再有 retryablePlaybackFailure。
     "app/src/main/java/com/hongguo/android/HongguoViewModel.kt": [
-        r"retryablePlaybackFailure\s*\(",
+        r"fun\s+retryPlaybackWithNewIdentity",
     ],
     "app/src/main/java/com/hongguo/api/service/AppSource.java": [
         r"class\s+PlaybackRejectedException",
         r"PLAYBACK_IDENTITY\s*\.\s*compareAndSet",
-        r"checkPlaybackCancellation\s*\(",
-        r"hasPlaybackTime\s*\(",
-        # 2026-11-23 合并上游 0.7.33 后：播放链换成 Kotlin MobilePlayerV5 +
-        # fetchTabV5/video_tab v5 GET；注入缝以上游为准。
+        r"checkPlaybackResponse\s*\(",
+        r"isTransientPlaybackError\s*\(",
         r"fetchTabV5\s*\(",
-        r"setSinglePlaybackForTest",
-        r"setPlaybackTabForTest",
-        r"setPlaybackFallbackForTest",
+        r"publicPlayback",
         r"discardPlaybackIdentity",
-        r"PlaybackBackoffException",
+        r"setTabV5ForTest",
+        r"setPublicPlaybackForTest",
+    ],
+    "app/src/main/java/com/hongguo/api/service/PublicEpisodeSource.java": [
+        r"_ROUTER_DATA|ROUTER",
+        r"fallback-play-info",
+        r"GuestUnavailableException",
     ],
 }
 
