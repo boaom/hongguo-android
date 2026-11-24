@@ -97,9 +97,6 @@ private class LiveAccountLogin : AccountLogin {
     override fun qr() = login.qr()
     override fun poll() = login.poll()
     override fun credentials() = login.credentials()
-
-    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
-    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
     override fun send(number: String) = phone.send(number)
     override fun verify(code: String) = phone.verify(code)
     override fun cancel() { login.cancel(); phone.cancel() }
@@ -121,6 +118,9 @@ class AccountRepository internal constructor(
     private val mutableState = MutableStateFlow(AccountState(sessionStatus = AccountSessionStatus.RESTORING, busy = true))
     val state: StateFlow<AccountState> = mutableState.asStateFlow()
     private var disk = AccountDisk()
+
+    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
+    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
     private var generation = 0L
     private var ownerGeneration = 0L
     private val observationSequence = AtomicLong()
