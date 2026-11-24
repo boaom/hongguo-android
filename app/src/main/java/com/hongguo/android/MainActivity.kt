@@ -83,6 +83,11 @@ class MainActivity : ComponentActivity() {
                 val updateState by updateModel.state.collectAsStateWithLifecycle()
                 val signedIn = accountState.sessionStatus == AccountSessionStatus.LOGGED_IN
                 LaunchedEffect(signedIn) { model.onAccountSession(signedIn) }
+                // 官网访客播放通道：同步登录 Cookie。未导入时为空串，保持匿名访客模式；
+                // 导入后 pcAuthenticatedPlayback=true，可获取完整分集。
+                LaunchedEffect(signedIn) {
+                    com.hongguo.api.service.PublicEpisodeSource.setWebsiteCookie(accountModel.websiteCookie())
+                }
                 BackHandler(enabled = state.playerOpen || state.selectedCard != null || state.tab != AppTab.HOME) {
                     when {
                         state.playerOpen -> model.closePlayer()

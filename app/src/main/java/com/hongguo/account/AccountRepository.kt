@@ -65,6 +65,10 @@ internal interface AccountLogin {
     fun qr(): WebLogin.Qr
     fun poll(): Boolean
     fun credentials(): AccountCredentials
+
+    /** 已导入的官网登录 Cookie；未导入时为空串。访客播放通道据此切换为登录态。 */
+    fun websiteCookie(): String = disk.websiteCredentials?.cookie.orEmpty()
+
     fun send(number: String): PhoneLogin.Sent
     fun verify(code: String): AccountCredentials
     fun cancel()

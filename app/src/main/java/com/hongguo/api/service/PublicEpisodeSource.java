@@ -54,6 +54,26 @@ public final class PublicEpisodeSource {
 
     private PublicEpisodeSource() {}
 
+    /**
+     * 官网登录 Cookie（「我的 → 账号」导入后由 App 层注入）。
+     *
+     * <p>为空时走匿名访客通道，官网只开放每部剧的前若干集；带上登录态后
+     * 播放页的 {@code pcAuthenticatedPlayback} 为 true，可拿到完整分集。
+     */
+    private static volatile String websiteCookie = "";
+
+    public static void setWebsiteCookie(String cookie) {
+        websiteCookie = cookie == null ? "" : cookie.trim();
+    }
+
+    private static boolean signedIn() { return !websiteCookie.isEmpty(); }
+
+    private static Request.Builder site(String url) {
+        Request.Builder builder = new Request.Builder().url(url);
+        if (signedIn()) builder.header("Cookie", websiteCookie);
+        return builder;
+    }
+
     public abstract static class GuestPlaybackException extends IOException {
         private GuestPlaybackException(String message) { super(message); }
     }
@@ -79,12 +99,13 @@ public final class PublicEpisodeSource {
         if (seriesId == null || vid == null || !ID.matcher(seriesId).matches() || !ID.matcher(vid).matches()) {
             throw invalid();
         }
-        Request page = new Request.Builder().url(WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
+        Request page = site(WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
                 .header("Accept", "text/html").build();
         String html = load(page, PAGE_BYTES, deadlineNanos, transport);
         Stream.VideoTrack track = pageTrack(html, seriesId, vid);
-        Request model = new Request.Builder().url(WebSource.SITE_ORIGIN + "/api/video/protected/fallback-play-info")
+        Request model = site(WebSource.SITE_ORIGIN + "/api/video/protected/fallback-play-info")
                 .header("Accept", "application/json")
+                .header("Referer", WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
                 .post(RequestBody.create(Json.stringify(Collections.singletonMap("item_id", vid)), JSON)).build();
         track.url = mediaUrl(load(model, MODEL_BYTES, deadlineNanos, transport), System.currentTimeMillis() / 1000.0);
         remaining(deadlineNanos);
@@ -110,11 +131,12 @@ public final class PublicEpisodeSource {
         if (series == null || !seriesId.equals(Json.optStr(series.get("series_id")))) throw invalid();
         Map<String, Object> access = Json.optObj(page.get("req"));
         if (access == null) throw new GuestUnavailableException();
-        if (!Boolean.FALSE.equals(access.get("pcLoginRequired"))) {
-            throw new GuestUnavailableException("本剧在官网要求登录后播放，访客通道不可用");
+        // 匿名访问时要求「不强制登录且非登录播放」；已注入官网 Cookie 时允许登录播放。
+        if (!Boolean.FALSE.equals(access.get("pcLoginRequired")) && !signedIn()) {
+            throw new GuestUnavailableException("本剧在官网要求登录后播放，请在「我的 → 账号」导入官网 Cookie");
         }
-        if (!Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback"))) {
-            throw new GuestUnavailableException("官网只对已登录用户开放本剧，访客通道不可用");
+        if (!Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback")) && !signedIn()) {
+            throw new GuestUnavailableException("官网只对已登录用户开放本剧，请在「我的 → 账号」导入官网 Cookie");
         }
         List<Object> episodes = Json.optArr(series.get("vid_list"));
         int accessible;
