@@ -58,9 +58,9 @@ public class PlaybackSourceTest {
         AppSource.setPlaybackPostForTest(null);
         // 默认让 video_tab 不可用，覆盖旧接口回退路径；需要新接口的用例自行注入。
         // video_tab v5 首跳：CI 不能打真网络，桩成 null 走后续注入路径。
-        AppSource.setTabV5ForTest((vid, quality, identity) -> null);
+        AppSource.setTabV5ForTest((vid, quality, identity, deadline) -> null);
         // 公开片源兜底：CI 不能打真网络，桩成不可用；相关用例单独注入。
-        AppSource.setPublicPlaybackForTest(episodeId -> { throw new java.io.IOException("公开片源不可用"); });
+        AppSource.setPublicPlaybackForTest((seriesId, vid, deadline) -> { throw new java.io.IOException("公开片源不可用"); });
         AppSource.setPlaybackTabForTest((vid, identity, deadline) -> null);
         // No single model in legacy-route fixtures; empty-response recovery has its own tests.
         AppSource.setSinglePlaybackForTest((vid, quality, identity, deadline) -> null);

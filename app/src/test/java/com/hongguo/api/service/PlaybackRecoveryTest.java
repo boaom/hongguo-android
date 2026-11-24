@@ -30,6 +30,11 @@ public class PlaybackRecoveryTest {
         AppSource.setPlaybackTabForTest((vid, identity, deadline) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setPlaybackPostForTest((body, identity, host, deadline) -> { throw new AssertionError("Unexpected legacy request"); });
         AppSource.setSinglePlaybackForTest((vid, quality, identity, deadline) -> track);
+        // 默认桩掉两条新通道，避免 CI 打真网络；需要它们的用例用 setAdditionalPlaybackForTest 显式覆盖。
+        AppSource.setAdditionalPlaybackForTest(
+                (vid, quality, identity, deadline) -> { throw new AppSource.EmptyPlaybackResponseException(); },
+                (vid, quality, identity, deadline) -> track,
+                (seriesId, vid, deadline) -> { throw new java.io.IOException("公开片源不可用"); });
     }
 
     @After public void cleanup() {
