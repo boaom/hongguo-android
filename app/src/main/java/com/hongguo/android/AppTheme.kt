@@ -233,6 +233,11 @@ internal val PlaybillPalette = HongguoPalette(
     canvas = Color(0xFFFBF7EF), cream = Color(0xFFF1E9DA), line = Color(0xFFE2D8C8), card = Color(0xFFFFFDF8),
     navMuted = Color(0xFF7A705F), navDivider = Color(0xFFE7DFD0),
     noticeBackground = Color(0xFFF7EEE2), noticeText = Color(0xFF8A4A2E),
+    accountCardStart = Color(0xFFFFFDF8), accountCardEnd = Color(0xFFFBF7EF),
+    accountCardBorder = Color(0xFFE2D8C8), accountCardGlow = Color(0x17C94426),
+    statusOk = Color(0xFF1E8E5A), statusOkSoft = Color(0xFFE6F6EE),
+    statusWarn = Color(0xFFC77700), statusWarnSoft = Color(0xFFFFF4E0),
+    statusBlue = Color(0xFF2F6FD6), statusBlueSoft = Color(0xFFEAF1FD),
 )
 
 internal val PlaybillDarkPalette = HongguoPalette(
@@ -243,6 +248,11 @@ internal val PlaybillDarkPalette = HongguoPalette(
     canvas = Color(0xFF171310), cream = Color(0xFF262019), line = Color(0xFF332B23), card = Color(0xFF1F1A15),
     navMuted = Color(0xFF96897A), navDivider = Color(0xFF262019),
     noticeBackground = Color(0xFF2C211A), noticeText = Color(0xFFF0B49A),
+    accountCardStart = Color(0xFF1F1A15), accountCardEnd = Color(0xFF171310),
+    accountCardBorder = Color(0xFF332B23), accountCardGlow = Color(0x1CFF9B76),
+    statusOk = Color(0xFF4FD18B), statusOkSoft = Color(0xFF1B3326),
+    statusWarn = Color(0xFFF6B94E), statusWarnSoft = Color(0xFF362A16),
+    statusBlue = Color(0xFF74A8FF), statusBlueSoft = Color(0xFF1C293D),
 )
 
 /** 红果小报: newsprint ground, ink columns and a vermilion kicker. */
@@ -254,6 +264,11 @@ internal val GazettePalette = HongguoPalette(
     canvas = Color(0xFFF6F1E7), cream = Color(0xFFEFE8D8), line = Color(0xFFE2D8C8), card = Color(0xFFFFFDF6),
     navMuted = Color(0xFF6E6355), navDivider = Color(0xFFE7DFD2),
     noticeBackground = Color(0xFFF7EEE2), noticeText = Color(0xFF8A4A2E),
+    accountCardStart = Color(0xFFFFFDF6), accountCardEnd = Color(0xFFF6F1E7),
+    accountCardBorder = Color(0xFFE2D8C8), accountCardGlow = Color(0x17C0392B),
+    statusOk = Color(0xFF1E8E5A), statusOkSoft = Color(0xFFE6F6EE),
+    statusWarn = Color(0xFFC77700), statusWarnSoft = Color(0xFFFFF4E0),
+    statusBlue = Color(0xFF2F6FD6), statusBlueSoft = Color(0xFFEAF1FD),
 )
 
 internal val GazetteDarkPalette = HongguoPalette(
@@ -264,6 +279,11 @@ internal val GazetteDarkPalette = HongguoPalette(
     canvas = Color(0xFF191511), cream = Color(0xFF241E17), line = Color(0xFF2E2820), card = Color(0xFF201B15),
     navMuted = Color(0xFF96897A), navDivider = Color(0xFF241E17),
     noticeBackground = Color(0xFF2A211A), noticeText = Color(0xFFF0B49A),
+    accountCardStart = Color(0xFF201B15), accountCardEnd = Color(0xFF191511),
+    accountCardBorder = Color(0xFF2E2820), accountCardGlow = Color(0x1CF08A7A),
+    statusOk = Color(0xFF4FD18B), statusOkSoft = Color(0xFF1B3326),
+    statusWarn = Color(0xFFF6B94E), statusWarnSoft = Color(0xFF362A16),
+    statusBlue = Color(0xFF74A8FF), statusBlueSoft = Color(0xFF1C293D),
 )
 
 /** 集刻度 RAIL：冷中性底，红色只用于「你在哪 / 现在做什么」。 */
@@ -275,6 +295,11 @@ internal val RailPalette = HongguoPalette(
     canvas = Color(0xFFF3F4F6), cream = Color(0xFFE9EAEE), line = Color(0xFFE2E4E8), card = Color(0xFFFFFFFF),
     navMuted = Color(0xFF63676D), navDivider = Color(0xFFE2E4E8),
     noticeBackground = Color(0xFFFDECEF), noticeText = Color(0xFFB00D28),
+    accountCardStart = Color(0xFFFFFFFF), accountCardEnd = Color(0xFFF3F4F6),
+    accountCardBorder = Color(0xFFE2E4E8), accountCardGlow = Color(0x17C8102E),
+    statusOk = Color(0xFF1E8E5A), statusOkSoft = Color(0xFFE6F6EE),
+    statusWarn = Color(0xFFC77700), statusWarnSoft = Color(0xFFFFF4E0),
+    statusBlue = Color(0xFF2F6FD6), statusBlueSoft = Color(0xFFEAF1FD),
 )
 
 internal val RailDarkPalette = HongguoPalette(
@@ -285,6 +310,11 @@ internal val RailDarkPalette = HongguoPalette(
     canvas = Color(0xFF0F1113), cream = Color(0xFF17191C), line = Color(0xFF262A2E), card = Color(0xFF17191C),
     navMuted = Color(0xFFA0A4AB), navDivider = Color(0xFF262A2E),
     noticeBackground = Color(0xFF2A1519), noticeText = Color(0xFFFF7A89),
+    accountCardStart = Color(0xFF17191C), accountCardEnd = Color(0xFF0F1113),
+    accountCardBorder = Color(0xFF262A2E), accountCardGlow = Color(0x1CFF8C99),
+    statusOk = Color(0xFF4FD18B), statusOkSoft = Color(0xFF1B3326),
+    statusWarn = Color(0xFFF6B94E), statusWarnSoft = Color(0xFF362A16),
+    statusBlue = Color(0xFF74A8FF), statusBlueSoft = Color(0xFF1C293D),
 )
 
 internal fun AppThemeStyle.palette(dark: Boolean = this == AppThemeStyle.IMMERSIVE): HongguoPalette = when (this) {
