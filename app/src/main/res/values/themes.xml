@@ -5,6 +5,10 @@
         <item name="android:colorAccent">#E44843</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowBackground">@color/hongguo_start_background</item>
+        <!-- NoActionBar 只去掉 ActionBar，Window 标题仍可能被 DecorView 渲染出 android:label
+             （Activity 重建/分屏切换后尤其明显）。显式关掉标题，顶部就不会再冒出应用名。 -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowNoTitle">true</item>
     </style>
     <style name="Theme.Hongguo.Starting" parent="Theme.Hongguo">
         <item name="windowSplashScreenBackground">@color/hongguo_start_background</item>
