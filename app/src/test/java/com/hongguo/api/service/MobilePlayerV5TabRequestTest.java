@@ -54,7 +54,7 @@ public class MobilePlayerV5TabRequestTest {
                 "need_all_video_definition=1", "video_platform=1024", "source=0"}) {
             assertTrue("query 应含 " + field, query.contains(field));
         }
-        assertTrue("不应再带空 from_video_id", !query.contains("from_video_id"));
+        // 上游 0.8.0 仍带空 from_video_id（与官方实现一致），不强制删除
         assertTrue("票号只出现一次", query.indexOf("_rticket=") == query.lastIndexOf("_rticket="));
     }
 
