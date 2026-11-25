@@ -18,6 +18,12 @@ class AccountViewModel(application: Application) : AndroidViewModel(application)
     fun sendSms(phone: String) = repository.sendSms(phone)
     fun verifySms(code: String) = repository.verifySms(code)
     fun importCookie(cookie: String) = repository.importCookie(cookie)
+
+    /** 当前登录 Cookie（可能为空），供播放通道在登录态下取完整分集。 */
+    fun websiteCookie(): String = repository.websiteCookie()
+
+    /** WEBSITE / APP / NONE：让用户知道播放通道用的是哪种登录态。 */
+    fun websiteCookieSource(): String = repository.websiteCookieSource()
     fun importAppCookie(cookie: String) = repository.importAppCookie(cookie)
     fun completeWebLogin(cookie: String) = repository.completeWebLogin(cookie)
     fun retryWebsiteAccount() = repository.retryWebsiteAccount()

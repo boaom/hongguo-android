@@ -31,14 +31,25 @@ public class PublicEpisodeSourceTest {
         };
     }
 
-    @After public void stop() throws IOException { server.shutdown(); }
+    @After public void stop() throws IOException {
+        PublicEpisodeSource.setWebsiteCookie("");
+        server.shutdown();
+    }
+
+    private static String page(String vid, int accessible, boolean seo, boolean signedIn) {
+        return rawPage(vid, accessible, seo, signedIn);
+    }
 
     private static String page(String vid, int accessible, boolean seo) {
+        return rawPage(vid, accessible, seo, false);
+    }
+
+    private static String rawPage(String vid, int accessible, boolean seo, boolean signedIn) {
         String metadata = seo ? ",\"publicVideoSeo\":{\"available\":true,\"seriesId\":\"" + SERIES
                 + "\",\"itemId\":\"" + vid + "\",\"durationSeconds\":125.14,\"width\":360,\"height\":640}" : "";
         return "<script>_ROUTER_DATA = {\"loaderData\":{\"player_(series_id)/(vid)/page\":{\"isSuccess\":true,"
                 + "\"series_id\":\"" + SERIES + "\",\"vid\":\"" + vid + "\","
-                + "\"req\":{\"pcLoginRequired\":false,\"pcAuthenticatedPlayback\":false},"
+                + "\"req\":{\"pcLoginRequired\":false,\"pcAuthenticatedPlayback\":" + signedIn + "},"
                 + "\"seriesDetail\":{\"series_id\":" + SERIES + ",\"vid_list\":[" + FIRST + "," + SECOND
                 + "],\"accessible_episode_cnt\":" + accessible + "}" + metadata + "}}};</script>";
     }
@@ -74,6 +85,25 @@ public class PublicEpisodeSourceTest {
         Stream.VideoTrack unlisted = fetch(SECOND);
         assertEquals(0.0, unlisted.publicDurationSeconds, 0);
         assertEquals("网页片源", unlisted.definition);
+    }
+
+    @Test public void websiteCookieUnlocksAuthenticatedPlaybackAndAttachesToRequests() throws Exception {
+        // 登录态：播放页 pcAuthenticatedPlayback=true（匿名时会被拒），带 Cookie 后可取片源。
+        PublicEpisodeSource.setWebsiteCookie("sessionid=fixture; uid_tt=42");
+        try {
+            server.enqueue(new MockResponse().setBody(page(FIRST, 1, true, true)));
+            server.enqueue(new MockResponse().setBody(reply(CDN, Long.MAX_VALUE)));
+            Stream.VideoTrack track = fetch(FIRST);
+            assertEquals(CDN, track.url);
+
+            RecordedRequest pageRequest = server.takeRequest();
+            assertEquals("sessionid=fixture; uid_tt=42", pageRequest.getHeader("Cookie"));
+            RecordedRequest player = server.takeRequest();
+            assertEquals("sessionid=fixture; uid_tt=42", player.getHeader("Cookie"));
+            assertNotNull(player.getHeader("Referer"));
+        } finally {
+            PublicEpisodeSource.setWebsiteCookie("");
+        }
     }
 
     @Test public void restrictedMismatchedOrMissingPermissionNeverRequestsMedia() {

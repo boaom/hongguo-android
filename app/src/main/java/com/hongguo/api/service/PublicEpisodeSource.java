@@ -54,12 +54,47 @@ public final class PublicEpisodeSource {
 
     private PublicEpisodeSource() {}
 
+    /**
+     * 官网登录 Cookie（「我的 → 账号」导入后由 App 层注入）。
+     *
+     * <p>为空时走匿名访客通道，官网只开放每部剧的前若干集；带上登录态后
+     * 播放页的 {@code pcAuthenticatedPlayback} 为 true，可拿到完整分集。
+     */
+    private static volatile String websiteCookie = "";
+    private static volatile String cookieSource = "NONE";
+
+    /** 同步登录 Cookie 并记录来源（WEBSITE / APP / NONE），后者只用于给用户的说明文案。 */
+    public static void setWebsiteCookie(String cookie, String source) {
+        websiteCookie = cookie == null ? "" : cookie.trim();
+        cookieSource = source == null ? "NONE" : source;
+    }
+
+    public static void setWebsiteCookie(String cookie) { setWebsiteCookie(cookie, "WEBSITE"); }
+
+    /** 当前播放通道的登录态描述，拼进错误文案，让用户能判断 Cookie 是否真的生效。 */
+    static String loginMode() {
+        switch (cookieSource) {
+            case "WEBSITE": return "已带官网 Cookie";
+            case "APP": return "只带 App Cookie（对官网通常无效，请改导官网 Cookie）";
+            default: return "未导入 Cookie（匿名访客）";
+        }
+    }
+
+    private static boolean signedIn() { return !websiteCookie.isEmpty(); }
+
+    private static Request.Builder site(String url) {
+        Request.Builder builder = new Request.Builder().url(url);
+        if (signedIn()) builder.header("Cookie", websiteCookie);
+        return builder;
+    }
+
     public abstract static class GuestPlaybackException extends IOException {
         private GuestPlaybackException(String message) { super(message); }
     }
 
     public static final class GuestUnavailableException extends GuestPlaybackException {
         public GuestUnavailableException() { super("官网暂未向访客提供本集完整片源"); }
+        GuestUnavailableException(String detail) { super(detail); }
     }
 
     public static final class GuestRateLimitedException extends GuestPlaybackException {
@@ -78,12 +113,13 @@ public final class PublicEpisodeSource {
         if (seriesId == null || vid == null || !ID.matcher(seriesId).matches() || !ID.matcher(vid).matches()) {
             throw invalid();
         }
-        Request page = new Request.Builder().url(WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
+        Request page = site(WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
                 .header("Accept", "text/html").build();
         String html = load(page, PAGE_BYTES, deadlineNanos, transport);
         Stream.VideoTrack track = pageTrack(html, seriesId, vid);
-        Request model = new Request.Builder().url(WebSource.SITE_ORIGIN + "/api/video/protected/fallback-play-info")
+        Request model = site(WebSource.SITE_ORIGIN + "/api/video/protected/fallback-play-info")
                 .header("Accept", "application/json")
+                .header("Referer", WebSource.SITE_ORIGIN + "/player/" + seriesId + "/" + vid)
                 .post(RequestBody.create(Json.stringify(Collections.singletonMap("item_id", vid)), JSON)).build();
         track.url = mediaUrl(load(model, MODEL_BYTES, deadlineNanos, transport), System.currentTimeMillis() / 1000.0);
         remaining(deadlineNanos);
@@ -108,17 +144,32 @@ public final class PublicEpisodeSource {
         Map<String, Object> series = Json.optObj(page.get("seriesDetail"));
         if (series == null || !seriesId.equals(Json.optStr(series.get("series_id")))) throw invalid();
         Map<String, Object> access = Json.optObj(page.get("req"));
-        if (access == null || !Boolean.FALSE.equals(access.get("pcLoginRequired"))
-                || !Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback"))) throw new GuestUnavailableException();
+        if (access == null) {
+            throw new GuestUnavailableException("官网播放页未返回访客权限信息；" + loginMode());
+        }
+        // 匿名访问时要求「不强制登录且非登录播放」；已注入官网 Cookie 时允许登录播放。
+        if (!Boolean.FALSE.equals(access.get("pcLoginRequired")) && !signedIn()) {
+            throw new GuestUnavailableException("本剧在官网要求登录后播放，请在「我的 → 账号」导入官网 Cookie");
+        }
+        if (!Boolean.FALSE.equals(access.get("pcAuthenticatedPlayback")) && !signedIn()) {
+            throw new GuestUnavailableException("官网只对已登录用户开放本剧，请在「我的 → 账号」导入官网 Cookie");
+        }
         List<Object> episodes = Json.optArr(series.get("vid_list"));
         int accessible;
         try { accessible = Integer.parseInt(Json.optStr(series.get("accessible_episode_cnt"))); }
-        catch (NumberFormatException ignored) { throw new GuestUnavailableException(); }
+        catch (NumberFormatException ignored) {
+            throw new GuestUnavailableException("官网未公布本剧的访客可播集数，暂不能确认能否播放");
+        }
         boolean available = false;
         for (int i = 0; i < Math.min(episodes.size(), accessible); i++) {
             if (vid.equals(Json.optStr(episodes.get(i)))) { available = true; break; }
         }
-        if (!available) throw new GuestUnavailableException();
+        if (!available) {
+            int position = episodes.indexOf(vid);
+            throw new GuestUnavailableException("官网仅开放前 " + Math.min(accessible, episodes.size())
+                    + " 集（本剧共 " + episodes.size() + " 集"
+                    + (position > 0 ? "，当前是第 " + (position + 1) + " 集" : "") + "）；" + loginMode());
+        }
 
         Stream.VideoTrack track = new Stream.VideoTrack();
         track.publicDurationSeconds = 0.0;
@@ -174,7 +225,9 @@ public final class PublicEpisodeSource {
         String backoff = response.header("Retry-After");
         int status = response.code();
         if (status == 429 || (backoff != null && !backoff.trim().isEmpty())) throw new GuestRateLimitedException();
-        if ((status >= 300 && status < 400) || status == 401 || status == 403 || status == 404) throw new GuestUnavailableException();
+        if ((status >= 300 && status < 400) || status == 401 || status == 403 || status == 404) {
+            throw new GuestUnavailableException("官网拒绝提供本集片源（HTTP " + status + "）");
+        }
         if (status != 200) throw new InvalidResponseException("官网片源请求失败（HTTP " + status + "）");
     }
 
