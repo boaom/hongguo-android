@@ -23,52 +23,78 @@ object MobilePlayerV5 {
     /** 无正文 GET 请求（video_tab），调用方自行以 GET 发送。 */
     data class TabRequest(val url: String, val headers: Map<String, String>)
 
-    /** video_tab 的 v5 无正文 GET：查询参数与头的形态对齐 hongguo-drama 7.7。 */
-    @JvmStatic
-    fun requestVideoTab(id: String, deviceId: String, iid: String, cdid: String, now: Long): TabRequest {
-        require(listOf(id, deviceId, iid).all { it.matches(Regex("[0-9]{1,30}")) })
-        // 设备参数必须与 TAB_UA 自洽：UA 声明 73932 / Android 16 / 25053RT47C / Redmi，
-        // 而旧 values 写的是 74332 / Android 12 / PGT-AN10(华为)，两者互相矛盾，服务端
-        // 可据此判定伪造客户端并回 200+空正文。以下 37 个字段按抓包中成功请求逐项对齐。
+    /**
+     * 官方播放 query 的完整设备上下文（2026-11-24 对齐 lvguo-tv 的可用形态）。
+     *
+     * 此前只发 21 个参数，缺 resolution / dpi / os_api / rom_version / host_abi /
+     * dragon_device_type / compliance_status / player_so_load 等分量。签名本身合法，
+     * 但上游把这些当作「设备画像不完整」，同样回 200 + 0 字节。这里按官方顺序补齐；
+     * 注册下发 klink_egdi 时附带（空值不写，避免污染签名串）。
+     */
+    private fun deviceQuery(
+        deviceId: String,
+        iid: String,
+        cdid: String,
+        egdi: String?,
+    ): LinkedHashMap<String, String> {
         val values = linkedMapOf(
-            "iid" to iid, "device_id" to deviceId, "cdid" to cdid,
-            "ac" to "wifi", "channel" to "update_64",
-            "aid" to "8662", "app_name" to "novelread",
-            "version_code" to "73932", "version_name" to "7.3.9.32",
             "device_platform" to "android", "os" to "android", "ssmix" to "a",
-            "device_type" to "25053RT47C", "device_brand" to "Redmi", "language" to "zh",
-            "os_api" to "36", "os_version" to "16",
-            "manifest_version_code" to "73932", "resolution" to "1280*2772", "dpi" to "520",
-            "update_version_code" to "73932", "host_abi" to "arm64-v8a",
-            "dragon_device_type" to "phone", "pv_player" to "73932",
+            "cdid" to cdid, "channel" to "vivo_8662_64",
+            "aid" to "8662", "app_name" to "novelread",
+            "version_code" to "74332", "version_name" to "7.4.3.32",
+            "manifest_version_code" to "74332", "update_version_code" to "74332",
+            "resolution" to "1920*1080", "dpi" to "280",
+            "device_type" to "PGT-AN10", "device_brand" to "HONOR",
+            "language" to "zh", "os_api" to "31", "os_version" to "12",
+            "ac" to "wifi", "host_abi" to "arm64-v8a",
+            "dragon_device_type" to "phone", "pv_player" to "74332",
             "compliance_status" to "0", "need_personal_recommend" to "1",
             "player_so_load" to "1", "is_android_pad_screen" to "0",
-            "video_id" to id, "video_id_type" to "0", "device_level" to "1",
-            "need_all_video_definition" to "1", "need_mp4_align" to "0", "use_os_player" to "0",
-            "video_platform" to "1024", "source" to "0",
+            "rom_version" to "V417IR+release-keys",
+            "iid" to iid, "device_id" to deviceId,
+        )
+        if (!egdi.isNullOrEmpty()) values["klink_egdi"] = egdi
+        return values
+    }
+
+    /** video_tab 的 v5 无正文 GET：查询参数与头的形态对齐 hongguo-drama 7.7。 */
+    @JvmStatic @JvmOverloads
+    fun requestVideoTab(
+        id: String,
+        deviceId: String,
+        iid: String,
+        cdid: String,
+        now: Long,
+        egdi: String? = null,
+    ): TabRequest {
+        require(listOf(id, deviceId, iid).all { it.matches(Regex("[0-9]{1,30}")) })
+        val values = deviceQuery(deviceId, iid, cdid, egdi)
+        values.putAll(
+            linkedMapOf(
+                "video_id" to id, "video_id_type" to "0", "device_level" to "1",
+                "need_all_video_definition" to "1", "need_mp4_align" to "0",
+                "use_os_player" to "0", "video_platform" to "1024",
+                "source" to "0", "from_video_id" to "",
+            )
         )
         val signed = signer.signPlaybackGet(TAB_ENDPOINT, values, now)
-        // 官方形态带设备 Cookie 与 store-region 头（抓包实证）：服务端据此判定设备/区域，
-        // 缺失时表现为 200 + 空正文。install_id 即注册身份的 iid，Cookie 不参与签名计算。
-        val deviceCookie = "store-region=cn-sh; store-region-src=did; install_id=$iid"
         return TabRequest(
             signed.url,
-            signed.headers + mapOf(
-                "User-Agent" to TAB_UA,
-                "Accept" to "application/json",
-                "Cookie" to deviceCookie,
-                "x-tt-store-region" to "cn-sh",
-                "x-tt-store-region-src" to "did",
-            ),
+            signed.headers + mapOf("User-Agent" to TAB_UA, "Accept" to "application/json"),
         )
     }
 
-    @JvmStatic fun request(id: String, deviceId: String, iid: String, cdid: String, now: Long): Request {
+    @JvmStatic @JvmOverloads
+    fun request(
+        id: String,
+        deviceId: String,
+        iid: String,
+        cdid: String,
+        now: Long,
+        egdi: String? = null,
+    ): Request {
         require(listOf(id, deviceId, iid).all { it.matches(Regex("[0-9]{1,30}")) })
-        val query = linkedMapOf("aid" to "8662", "app_name" to "novelread", "version_code" to "74332",
-            "version_name" to "7.4.3.32", "channel" to "vivo_8662_64", "device_platform" to "android",
-            "device_type" to "PGT-AN10", "os_version" to "12", "update_version_code" to "74332",
-            "iid" to iid, "cdid" to cdid, "device_id" to deviceId)
+        val query = deviceQuery(deviceId, iid, cdid, egdi)
         val payload = JSONObject("""{"biz_param":{"detail_page_version":0,"device_level":1,"disable_digg_stat":false,"disable_video_relate_book":false,"need_all_video_definition":true,"need_mp4_align":false,"use_os_player":false,"use_server_dns":false,"video_platform":1024},"mixed_video_id_map":{"1004":["$id"]},"dr_scene":"player"}""")
         val output = ByteArrayOutputStream()
         GZIPOutputStream(output).use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
