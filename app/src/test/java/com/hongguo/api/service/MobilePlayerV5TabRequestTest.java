@@ -40,12 +40,12 @@ public class MobilePlayerV5TabRequestTest {
         // 37 个字段按抓包成功请求逐项对齐；设备参数必须与 TAB_UA 自洽，
         // 否则服务端判定伪造客户端，回 200 + Content-Length:0。
         for (String field : new String[]{
-                "aid=8662", "app_name=novelread", "channel=update_64",
-                "version_code=73932", "version_name=7.3.9.32",
-                "device_type=25053RT47C", "device_brand=Redmi",
-                "os=android", "os_api=36", "os_version=16",
-                "manifest_version_code=73932", "update_version_code=73932",
-                "resolution=1280*2772", "dpi=520", "pv_player=73932",
+                "aid=8662", "app_name=novelread", "channel=vivo_8662_64",
+                "version_code=74332", "version_name=7.4.3.32",
+                "device_type=PGT-AN10", "device_brand=HONOR",
+                "os=android", "os_api=31", "os_version=12",
+                "manifest_version_code=74332", "update_version_code=74332",
+                "resolution=1920*1080", "dpi=280", "pv_player=74332",
                 "ssmix=a", "ac=wifi", "language=zh", "host_abi=arm64-v8a",
                 "dragon_device_type=phone", "compliance_status=0",
                 "need_personal_recommend=1", "player_so_load=1",
