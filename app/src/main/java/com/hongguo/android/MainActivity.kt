@@ -164,6 +164,9 @@ class MainActivity : ComponentActivity() {
                             if (detailState != null) when (layout) {
                                 AppThemeStyle.IMMERSIVE -> ImmersiveDetail(detailState, model, accountModel)
                                 AppThemeStyle.CARDS -> CardsDetail(detailState, model, accountModel)
+                                AppThemeStyle.PLAYBILL -> PlaybillDetail(detailState, model, accountModel)
+                                AppThemeStyle.GAZETTE -> GazetteDetail(detailState, model, accountModel)
+                                AppThemeStyle.RAIL -> RailDetail(detailState, model, accountModel)
                                 AppThemeStyle.WARM -> DetailScreen(detailState, model, accountModel)
                             }
                             else if (key.startsWith("detail_")) Unit
@@ -174,6 +177,9 @@ class MainActivity : ComponentActivity() {
                                 AppTab.HOME -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> HongguoTheme(layout, dark = true, applyToWindow = false) { ImmersiveHome(state, model) }
                                     AppThemeStyle.CARDS -> CardsHome(state, model)
+                                    AppThemeStyle.PLAYBILL -> PlaybillHome(state, model)
+                                    AppThemeStyle.GAZETTE -> GazetteHome(state, model)
+                                    AppThemeStyle.RAIL -> RailHome(state, model)
                                     AppThemeStyle.WARM -> {
                                         BrandHeader()
                                         HomeScreen(state, model)
@@ -182,6 +188,9 @@ class MainActivity : ComponentActivity() {
                                 AppTab.CATEGORY -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveTheater(state, model)
                                     AppThemeStyle.CARDS -> CardsDiscover(state, model)
+                                    AppThemeStyle.PLAYBILL -> PlaybillTheater(state, model)
+                                    AppThemeStyle.GAZETTE -> GazetteTheater(state, model)
+                                    AppThemeStyle.RAIL -> RailDiscover(state, model)
                                     AppThemeStyle.WARM -> CategoryScreen(state, model)
                                 }
                                 AppTab.RANK -> RankScreen(state, model)
@@ -190,6 +199,9 @@ class MainActivity : ComponentActivity() {
                                 AppTab.FAVORITES, AppTab.HISTORY -> when (layout) {
                                     AppThemeStyle.IMMERSIVE -> ImmersiveLibrary(tabState, model, accountModel)
                                     AppThemeStyle.CARDS -> CardsLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.PLAYBILL -> PlaybillLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.GAZETTE -> GazetteLibrary(tabState, model, accountModel)
+                                    AppThemeStyle.RAIL -> RailLibrary(tabState, model, accountModel)
                                     AppThemeStyle.WARM -> LibraryScreen(tabState, model, accountModel)
                                 }
                                 AppTab.MINE -> MyScreen(state, model, updateState, updateModel,
