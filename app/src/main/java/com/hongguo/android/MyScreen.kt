@@ -83,6 +83,13 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.hongguo.account.AccountState
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 
 @Composable
 internal fun MyScreen(
@@ -1616,48 +1623,6 @@ internal fun AboutSoftwareScreen(
 }
 
 @Composable
-internal fun ThemeOption(
-    style: AppThemeStyle,
-    selected: Boolean,
-    modifier: Modifier,
-    previewDark: Boolean? = null,
-    onSelect: () -> Unit,
-) {
-    val ring = if (selected) Orange else Color.Transparent
-    Column(
-        modifier
-            .clip(RoundedCornerShape(16.dp))
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .semantics { contentDescription = "${style.label}主题" }
-            .testTag("theme_option_${style.key}")
-            .border(2.dp, ring, RoundedCornerShape(16.dp))
-            .background(Canvas)
-            .padding(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ThemePreview(style, previewDark)
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-        ) {
-            if (selected) Box(Modifier.size(18.dp).clip(CircleShape).background(Orange), Alignment.Center) {
-                Icon(Icons.Outlined.Check, null, Modifier.size(13.dp), tint = OnOrange)
-            } else Box(Modifier.size(18.dp).padding(1.dp).border(2.dp, Muted, CircleShape))
-            Text(
-                text = style.label,
-                color = Ink,
-                fontSize = 13.sp,
-                lineHeight = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
-    }
-}
 
 private val PreviewTones = listOf(
     Color(0xFF7B3B2C), Color(0xFF8A4F62), Color(0xFF5B4636), Color(0xFF3E4A61),
