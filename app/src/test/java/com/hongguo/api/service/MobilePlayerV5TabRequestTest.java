@@ -31,12 +31,10 @@ public class MobilePlayerV5TabRequestTest {
         assertEquals("不应声明 Content-Type", null, req.getHeaders().get("Content-Type"));
         assertEquals("不应声明 Content-Encoding", null, req.getHeaders().get("Content-Encoding"));
         assertEquals("不应带 x-ss-stub", null, req.getHeaders().get("x-ss-stub"));
-        // 官方形态带设备 Cookie 与 store-region 头（抓包实证），缺失时服务端回 200+空正文。
-        assertNotNull("应带 Cookie", req.getHeaders().get("Cookie"));
-        assertTrue("Cookie 含 install_id",
-                req.getHeaders().get("Cookie").contains("install_id=1905892595382586"));
-        assertEquals("cn-sh", req.getHeaders().get("x-tt-store-region"));
-        assertEquals("did", req.getHeaders().get("x-tt-store-region-src"));
+        // 上游 0.8.0 改走设备可信度激活（app_alert_check + 完整设备画像 query），
+        // 不再依赖 Cookie；这里断言请求头集合与上游实现一致（UA + Accept + 三个签名头）。
+        assertNotNull("应带 User-Agent", req.getHeaders().get("User-Agent"));
+        assertNotNull("应带 Accept", req.getHeaders().get("Accept"));
 
         String query = req.getUrl().substring(req.getUrl().indexOf('?') + 1);
         // 37 个字段按抓包成功请求逐项对齐；设备参数必须与 TAB_UA 自洽，
