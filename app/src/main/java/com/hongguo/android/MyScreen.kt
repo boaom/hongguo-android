@@ -1622,8 +1622,6 @@ internal fun AboutSoftwareScreen(
     }
 }
 
-@Composable
-
 private val PreviewTones = listOf(
     Color(0xFF7B3B2C), Color(0xFF8A4F62), Color(0xFF5B4636), Color(0xFF3E4A61),
     Color(0xFF2F5D50), Color(0xFF7A5C2E), Color(0xFF4B3F6B),
@@ -1955,6 +1953,7 @@ private fun CardsMine(state: HongguoUiState, model: HongguoViewModel, updateStat
 }
 
 
+@Composable
 internal fun ThemeStyleCarousel(selected: AppThemeStyle, previewDark: Boolean?, onSelect: (AppThemeStyle) -> Unit) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = AppThemeStyle.entries.indexOf(selected).coerceAtLeast(0))
     LazyRow(Modifier.fillMaxWidth().selectableGroup().testTag("theme_style_carousel"), state = listState,
@@ -2031,5 +2030,3 @@ private fun MyMenuRow(title: String, subtitle: String, tag: String, icon: ImageV
         else Icon(Icons.Outlined.ChevronRight, null, Modifier.size(20.dp), tint = Muted)
     }
 }
-
-@Composable
