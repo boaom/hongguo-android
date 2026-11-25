@@ -1878,6 +1878,7 @@ internal fun AccountAvatarImage(url: String?) {
 }
 
 
+@Composable
 private fun ImmersiveMine(state: HongguoUiState, model: HongguoViewModel, updateState: UpdateUiState, updateModel: UpdateViewModel,
                           accountName: String?, accountStatus: String, accountAvatar: String?, onAccount: () -> Unit,
                           openSettings: () -> Unit, openTheme: () -> Unit) {
@@ -2025,3 +2026,45 @@ internal fun ThemeOption(style: AppThemeStyle, selected: Boolean, modifier: Modi
         }
     }
 }
+
+
+/** 账号与隐私 · 设置 · 检查更新, the same three rows (with the same tags) in every theme. */
+@Composable
+private fun MyServiceMenu(settingsHint: String, themeLabel: String, updateState: UpdateUiState, updateModel: UpdateViewModel,
+                          onAccount: () -> Unit, openSettings: () -> Unit) {
+    Surface(shape = RoundedCornerShape(16.dp), color = CardSurface) {
+        Column {
+            MyMenuRow("账号与隐私", "登录方式、云片单与账号管理", "my_account", Icons.Outlined.PrivacyTip, onClick = onAccount)
+            MenuDivider()
+            MyMenuRow("设置", settingsHint, "my_settings", Icons.Outlined.Settings, trailing = themeLabel, onClick = openSettings)
+            MenuDivider()
+            MyMenuRow("检查更新", if (updateState.checking) "正在检查新版本…" else "当前版本 ${BuildConfig.VERSION_NAME}",
+                "update_check", Icons.Outlined.SystemUpdate, busy = updateState.checking) { updateModel.checkForUpdates() }
+        }
+    }
+}
+
+/** Starts under the row text, not under the icon tile. */
+@Composable
+private fun MenuDivider() = HorizontalDivider(color = Canvas, modifier = Modifier.padding(start = 64.dp, end = 18.dp))
+
+@Composable
+
+private fun MyMenuRow(title: String, subtitle: String, tag: String, icon: ImageVector? = null, trailing: String? = null,
+                      busy: Boolean = false, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().testTag(tag).clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (icon != null) Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(SoftOrange), Alignment.Center) {
+            Icon(icon, null, Modifier.size(20.dp), tint = AccentInk)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
+        }
+        if (trailing != null) Text(trailing, color = Muted, fontSize = 13.sp, maxLines = 1)
+        if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Muted)
+        else Icon(Icons.Outlined.ChevronRight, null, Modifier.size(20.dp), tint = Muted)
+    }
+}
+
+@Composable
